@@ -32,8 +32,7 @@ class EnquiryUpdateTimeline extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: updates.length,
             itemBuilder: (context, index) {
-              final update = updates[index];
-              final enquiryUpdate = EnquiryUpdate.fromDocument(update);
+              final update = EnquiryUpdate.fromDocument(updates[index]);
               final isLast = index == updates.length - 1;
 
               return Row(
@@ -42,7 +41,6 @@ class EnquiryUpdateTimeline extends StatelessWidget {
                   // Timeline line + dot
                   Column(
                     children: [
-                      // Dot
                       Container(
                         width: 14,
                         height: 14,
@@ -51,40 +49,36 @@ class EnquiryUpdateTimeline extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                       ),
-                      // Line (only if not last)
                       if (!isLast)
                         Container(
                           width: 2,
                           height: 60,
-                          color: Colors.deepPurple.withOpacity(0.4),
+                          color: Colors.deepPurple.withValues(alpha: 0.4, red: 0.4, green: 0.4, blue: 0.4),
                         ),
                     ],
                   ),
-
                   const SizedBox(width: 12),
-
                   // Update card/info
                   Expanded(
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 20),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.deepPurple.withOpacity(0.05),
+                        color: Colors.deepPurple.withValues(alpha: 0.5, red: 0.5, green: 0.5, blue: 0.5),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            enquiryUpdate.description,
+                            update.description,
                             style: const TextStyle(
                                 fontSize: 14, fontWeight: FontWeight.w500),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            formatDate(enquiryUpdate.createdAt),
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.grey),
+                            formatDate(update.createdAt),
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
                           ),
                         ],
                       ),

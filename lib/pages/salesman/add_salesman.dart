@@ -88,10 +88,11 @@ class _AddSalesmanPageState extends State<AddSalesmanPage> {
         );
       }
     } catch (e) {
-      print("Transaction failed: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      if(mounted){
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
     }
   }
 

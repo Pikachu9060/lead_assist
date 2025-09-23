@@ -1,14 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:leadassist/models/user_model.dart';
 import 'package:leadassist/pages/customer/add_customer.dart';
 import 'package:leadassist/widgets/user_card.dart';
 import 'package:leadassist/widgets/floating_action_button.dart';
 
-import '../../mock_data.dart';
-
 class CustomerListPage extends StatefulWidget{
+  const CustomerListPage({super.key});
+
   @override
   State<CustomerListPage> createState() => _CustomerListPageState();
 }
@@ -27,7 +26,6 @@ class _CustomerListPageState extends State<CustomerListPage> {
       body: SafeArea(
         child: StreamBuilder(stream: customerCollection.snapshots(), builder: (context, snapshot){
           if(snapshot.hasError){
-            print(snapshot.error);
             return Center(child: Text("Error"),);
           }
 

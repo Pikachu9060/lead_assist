@@ -35,7 +35,7 @@ class EnquiryCard extends StatelessWidget {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16)),
               elevation: 3,
-              shadowColor: Colors.deepPurple.withOpacity(0.5),
+              shadowColor: Colors.deepPurple.withValues(alpha: 0.5, red: 0.5, green: 0.5, blue: 0.5),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(

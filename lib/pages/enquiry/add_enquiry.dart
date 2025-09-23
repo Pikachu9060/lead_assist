@@ -62,7 +62,8 @@ class _AddEnquiryPageState extends State<AddEnquiryPage> {
       setState(() {
         selectedCustomer = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      if(mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("No Customer Found"),
           action: SnackBarAction(
@@ -76,6 +77,7 @@ class _AddEnquiryPageState extends State<AddEnquiryPage> {
           ),
         ),
       );
+      }
     }
   }
 
@@ -105,7 +107,6 @@ class _AddEnquiryPageState extends State<AddEnquiryPage> {
           }
         })
         .catchError((err) {
-          print(err.toString());
         });
   }
 

@@ -75,7 +75,6 @@ class _MobileAuthState extends State<MobileAuth>
       );
       return;
     }
-    print("Mobile Number: ${_mobileController.text}");
     await FirebaseAuth.instance.verifyPhoneNumber(
       phoneNumber: "+91${_mobileController.text}",
       verificationCompleted: (PhoneAuthCredential credential) async {
@@ -88,12 +87,13 @@ class _MobileAuthState extends State<MobileAuth>
         //   ),
         // );
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("OTP verified successfully!")),
-        );
+        if(mounted){
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("OTP verified successfully!")),
+          );
+        }
       },
       verificationFailed: (FirebaseAuthException e) {
-        print('Error: ${e.message}');
       },
       codeSent: (String verificationId, int? resendToken) {
         // Save verificationId for OTP verification step
@@ -101,7 +101,6 @@ class _MobileAuthState extends State<MobileAuth>
         setState(() {
           _otpSent = true;
         });
-        print('OTP sent! Verification ID: $verificationId');
       },
       codeAutoRetrievalTimeout: (String verificationId) {
         // Optional: handle timeout
@@ -122,8 +121,7 @@ class _MobileAuthState extends State<MobileAuth>
       UserCredential userCredential =
       await FirebaseAuth.instance.signInWithCredential(credential);
 
-      if (userCredential.user != null) {
-        print('Admin logged in!');
+      if (userCredential.user != null && mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -137,7 +135,6 @@ class _MobileAuthState extends State<MobileAuth>
         );
       }
     } catch (e) {
-      print('OTP verification failed: $e');
     }
   }
 

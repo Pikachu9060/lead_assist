@@ -4,29 +4,33 @@ class EnquiryUpdate {
   final String id;
   final String description;
   final DateTime createdAt;
+  final String enquiryId;
 
   EnquiryUpdate({
     required this.id,
     required this.description,
     required this.createdAt,
+    required this.enquiryId,
   });
 
   factory EnquiryUpdate.fromDocument(Map<String, dynamic> doc) {
-    final createdAtField = doc['created_at'];
-    DateTime createdAt;
+    final createdAt = doc['created_at'];
+    DateTime date;
 
-    if (createdAtField is Timestamp) {
-      createdAt = createdAtField.toDate();
-    } else if (createdAtField is DateTime) {
-      createdAt = createdAtField;
+    // Convert Firestore Timestamp to DateTime
+    if (createdAt is Timestamp) {
+      date = createdAt.toDate();
+    } else if (createdAt is DateTime) {
+      date = createdAt;
     } else {
-      createdAt = DateTime.now(); // fallback if missing
+      date = DateTime.now(); // fallback
     }
 
     return EnquiryUpdate(
-      id: doc['id'] ?? '',
+      id: doc['id'],
       description: doc['description'] ?? '',
-      createdAt: createdAt,
+      createdAt: date,
+      enquiryId: doc['enquiryId'] ?? '',
     );
   }
 }

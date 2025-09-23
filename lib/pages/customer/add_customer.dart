@@ -88,17 +88,17 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
         );
       }
     } catch (e) {
-      print("Transaction failed: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      if(mounted){
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final primaryColor = Colors.deepPurple;
-    final lightPurple = Colors.deepPurple[50];
 
     return Scaffold(
       backgroundColor: Colors.white,

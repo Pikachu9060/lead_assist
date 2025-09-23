@@ -1,10 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:leadassist/pages/customer/customer_list_page.dart';
-import 'package:leadassist/pages/enquiry/add_enquiry.dart';
 import 'package:leadassist/pages/enquiry/enquiry_page_list.dart';
-import 'package:leadassist/pages/salesman/add_salesman.dart';
-import 'package:leadassist/pages/salesman/salesman_list.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

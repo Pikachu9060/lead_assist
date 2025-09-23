@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:leadassist/pages/salesman/add_salesman.dart';
 import 'package:leadassist/widgets/floating_action_button.dart';
@@ -8,6 +7,8 @@ import '../../models/user_model.dart';
 import '../../widgets/user_card.dart';
 
 class SalesmanListPage extends StatefulWidget {
+  const SalesmanListPage({super.key});
+
   @override
   State<SalesmanListPage> createState() => _SalesmanListPageState();
 }
@@ -28,7 +29,6 @@ class _SalesmanListPageState extends State<SalesmanListPage> {
           stream: customerCollection.snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              print(snapshot.error);
               return Center(child: Text("Error"));
             }
 

@@ -110,7 +110,6 @@ class _EnquiryPageListState extends State<EnquiryPageList> {
                 .snapshots(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
-                print(snapshot.error);
                 return Center(child: Text("Error"));
               }
 

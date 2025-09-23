@@ -9,9 +9,7 @@ import '../../models/enquiry_model.dart';
 
 final uuid = Uuid();
 
-String formatDate(DateTime date) {
-  return DateFormat("dd MMM yyyy, hh:mm a").format(date);
-}
+String formatDate(DateTime date) => DateFormat("dd MMM yyyy, hh:mm a").format(date);
 
 class EnquiryDetailsPage extends StatefulWidget {
   final Enquiry enquiry;
@@ -39,13 +37,20 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
     _loadInitialUpdates();
   }
 
-  void _loadInitialUpdates() async {
+  Future<void> _loadInitialUpdates() async {
     final snapshot = await updatesCollection
         .where("enquiryId", isEqualTo: widget.enquiry.id)
         .orderBy("created_at", descending: true)
         .get();
 
-    updatesNotifier.value = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+    updatesNotifier.value = snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      // Convert Firestore Timestamp to DateTime
+      if (data['created_at'] is Timestamp) {
+        data['created_at'] = (data['created_at'] as Timestamp).toDate();
+      }
+      return data;
+    }).toList();
   }
 
   Future<UserModel?> fetchUser(String userId) async {
@@ -58,36 +63,45 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
         return UserModel.fromJson(doc.data()!);
       }
     } catch (e) {
-      print("Error fetching user: $e");
     }
     return null;
   }
 
-  void addUpdateToFirestore() async {
+  Future<void> addUpdateToFirestore() async {
     final updateId = "U_${uuid.v4()}";
     final createAt = DateTime.now();
     final update = {
       "id": updateId,
-      "description": descController.text,
+      "description": descController.text.trim(),
       "created_at": createAt,
       "enquiryId": widget.enquiry.id,
     };
+
+    if (update["description"] != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Description cannot be empty")));
+      return;
+    }
 
     try {
       await enquiryCollection.doc(widget.enquiry.id).update({"updated_at": createAt});
       await updatesCollection.doc(updateId).set(update);
 
-      // Append the new update to local list
+      // Append new update locally
       updatesNotifier.value = [update, ...updatesNotifier.value];
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text("Update Added Successfully")));
+      if(mounted){
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text("Update Added Successfully")));
 
-      descController.clear();
-      Navigator.of(context).pop();
+        descController.clear();
+        Navigator.of(context).pop();
+      }
     } catch (e) {
-      print("Error adding update: $e");
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to add update")));
+      if(mounted){
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text("Failed to add update")));
+      }
     }
   }
 
@@ -124,7 +138,7 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
 
   void _launchDialer(String phone) async {
     final url = 'tel:$phone';
-    if (await canLaunch(url)) await launch(url);
+    if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url));
   }
 
   @override
@@ -144,10 +158,8 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const CircularProgressIndicator();
-                } else if (snapshot.hasError) {
-                  return const Text('Error loading');
-                } else if (!snapshot.hasData) {
-                  return const Text('Not found');
+                } else if (snapshot.hasError || !snapshot.hasData) {
+                  return const Text('Customer not found');
                 }
                 final user = snapshot.data!;
                 return Row(
@@ -155,10 +167,8 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
                     CircleAvatar(
                       radius: 30,
                       backgroundColor: Colors.blue[100],
-                      child: Text(
-                        user.name[0],
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                      ),
+                      child: Text(user.name[0],
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -211,6 +221,16 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
                     ValueListenableBuilder<String>(
                       valueListenable: statusNotifier,
                       builder: (context, currentStatus, _) {
+                        final statusList = [
+                          "New",
+                          "Pending",
+                          "In Progress",
+                          "Completed",
+                          "Cancelled"
+                        ];
+                        // Fallback if currentStatus is invalid
+                        if (!statusList.contains(currentStatus)) currentStatus = "New";
+
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
@@ -219,13 +239,6 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
                           ),
                           child: GestureDetector(
                             onTap: () async {
-                              final statusList = [
-                                "New",
-                                "pending",
-                                "In Progress",
-                                "Completed",
-                                "Cancelled"
-                              ];
                               final newStatus = await showDialog<String>(
                                 context: context,
                                 builder: (context) {
@@ -235,10 +248,10 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
                                       title: const Text("Update Status"),
                                       content: DropdownButtonFormField<String>(
                                         value: tempStatus,
-                                        items: statusList.map((status) {
-                                          return DropdownMenuItem(
-                                              value: status, child: Text(status));
-                                        }).toList(),
+                                        items: statusList
+                                            .map((status) =>
+                                            DropdownMenuItem(value: status, child: Text(status)))
+                                            .toList(),
                                         onChanged: (val) => setState(() => tempStatus = val!),
                                       ),
                                       actions: [
@@ -264,11 +277,9 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
                             },
                             child: Row(
                               children: [
-                                Text(
-                                  currentStatus,
-                                  style: const TextStyle(
-                                      color: Colors.deepPurple, fontWeight: FontWeight.bold),
-                                ),
+                                Text(currentStatus,
+                                    style: const TextStyle(
+                                        color: Colors.deepPurple, fontWeight: FontWeight.bold)),
                                 const SizedBox(width: 4),
                                 const Icon(Icons.edit, size: 18, color: Colors.deepPurple),
                               ],
