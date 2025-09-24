@@ -77,7 +77,7 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
       "enquiryId": widget.enquiry.id,
     };
 
-    if (update["description"] != null) {
+    if (update["description"] == null) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text("Description cannot be empty")));
       return;

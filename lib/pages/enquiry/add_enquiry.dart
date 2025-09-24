@@ -67,7 +67,7 @@ class _AddEnquiryPageState extends State<AddEnquiryPage> {
         SnackBar(
           content: Text("No Customer Found"),
           action: SnackBarAction(
-            label: "label",
+            label: "Add",
             onPressed: () {
               Navigator.push(
                 context,
