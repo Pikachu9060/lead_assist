@@ -1,26 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:leadassist/core/config.dart';
-import 'package:leadassist/screens/auth_wrapper.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  try {
-    await Firebase.initializeApp();
-    runApp(const LeadAssistApp());
-  } catch (e) {
-    runApp(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Text('Failed to initialize Firebase: $e'),
-          ),
-        ),
-      ),
-    );
-  }
-}
+import 'core/config.dart';
+import 'screens/auth_wrapper.dart';
 
 class LeadAssistApp extends StatelessWidget {
   const LeadAssistApp({super.key});
@@ -30,7 +10,7 @@ class LeadAssistApp extends StatelessWidget {
     return MaterialApp(
       title: AppConfig.appName,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
         inputDecorationTheme: const InputDecorationTheme(
           border: OutlineInputBorder(),

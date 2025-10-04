@@ -1,8 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../services/enquiry_service.dart';
 import '../services/salesman_service.dart';
-import '../widgets/base_screen.dart';
-import '../widgets/loading_indicator.dart';
+import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/empty_state.dart';
+import '../shared/widgets/error_widget.dart';
 
 class AddEnquiryScreen extends StatefulWidget {
   const AddEnquiryScreen({super.key});
@@ -20,6 +22,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
   List<QueryDocumentSnapshot> _salesmen = [];
   bool _isLoading = false;
   bool _loadingSalesmen = true;
+  String? _loadError;
 
   @override
   void initState() {
@@ -29,14 +32,16 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
 
   Future<void> _loadSalesmen() async {
     try {
-      final salesmen = await SalesmanService.getSalesmen();
+      final salesmen = await SalesmanService.getActiveSalesmen();
       setState(() {
         _salesmen = salesmen;
         _loadingSalesmen = false;
       });
     } catch (e) {
-      _showError('Failed to load salesmen: $e');
-      setState(() => _loadingSalesmen = false);
+      setState(() {
+        _loadError = e.toString();
+        _loadingSalesmen = false;
+      });
     }
   }
 
@@ -89,8 +94,10 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BaseScreen(
-      title: 'Add Enquiry',
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Add Enquiry'),
+      ),
       body: _isLoading
           ? const LoadingIndicator(message: 'Adding enquiry...')
           : _buildContent(),
@@ -102,7 +109,22 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
       return const LoadingIndicator(message: 'Loading salesmen...');
     }
 
+    if (_loadError != null) {
+      return CustomErrorWidget(
+        message: _loadError!,
+        onRetry: _loadSalesmen,
+      );
+    }
+
+    if (_salesmen.isEmpty) {
+      return const EmptyStateWidget(
+        message: 'No active salesmen available\nPlease add salesmen first',
+        icon: Icons.people,
+      );
+    }
+
     return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
       child: Form(
         key: _formKey,
         child: Column(
