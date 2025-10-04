@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/salesman_service.dart';
+import '../core/config.dart';
 import '../shared/widgets/loading_indicator.dart';
 
 class AddSalesmanScreen extends StatefulWidget {
@@ -13,13 +14,14 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _mobileController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  String? _selectedRegion; // ✅ ADDED REGION STATE
 
   Future<void> _addSalesman() async {
     if (!_formKey.currentState!.validate()) return;
@@ -29,14 +31,20 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
       return;
     }
 
+    if (_selectedRegion == null) {
+      _showError('Please select a region');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       await SalesmanService.addSalesman(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
+        mobileNumber: _mobileController.text.trim(),
         password: _passwordController.text.trim(),
+        region: _selectedRegion!, // ✅ PASS REGION TO SERVICE
       );
 
       if (!mounted) return;
@@ -103,14 +111,22 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
               ),
               const SizedBox(height: 16),
               _buildTextField(
-                controller: _phoneController,
-                label: 'Phone',
+                controller: _mobileController,
+                label: 'Mobile Number',
                 icon: Icons.phone,
                 keyboardType: TextInputType.phone,
-                validator: (value) => value?.isEmpty ?? true
-                    ? 'Please enter phone number'
-                    : null,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter mobile number';
+                  }
+                  if (value.trim().length < 10) {
+                    return 'Please enter valid mobile number';
+                  }
+                  return null;
+                },
               ),
+              const SizedBox(height: 16),
+              _buildRegionDropdown(), // ✅ ADDED REGION DROPDOWN
               const SizedBox(height: 16),
               _buildPasswordField(
                 controller: _passwordController,
@@ -140,6 +156,9 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please confirm password';
+                  }
+                  if (value != _passwordController.text) {
+                    return 'Passwords do not match';
                   }
                   return null;
                 },
@@ -179,6 +198,33 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
     );
   }
 
+  // ✅ ADDED REGION DROPDOWN WIDGET
+  Widget _buildRegionDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedRegion,
+      decoration: const InputDecoration(
+        labelText: 'Assign Region',
+        prefixIcon: Icon(Icons.location_on),
+        border: OutlineInputBorder(),
+      ),
+      items: AppConfig.regions.map((region) {
+        return DropdownMenuItem(
+          value: region,
+          child: Text(region),
+        );
+      }).toList(),
+      onChanged: (value) {
+        setState(() => _selectedRegion = value);
+      },
+      validator: (value) {
+        if (value == null) {
+          return 'Please select a region';
+        }
+        return null;
+      },
+    );
+  }
+
   Widget _buildPasswordField({
     required TextEditingController controller,
     required String label,
@@ -208,7 +254,7 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
+    _mobileController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();

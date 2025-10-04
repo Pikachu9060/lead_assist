@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/config.dart';
+import '../services/auth_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import 'admin_dashboard.dart';
 import 'salesman_dashboard.dart';
@@ -57,44 +58,42 @@ class _UserRoleWrapperState extends State<UserRoleWrapper> {
 
   Future<void> _getUserRole() async {
     try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection(AppConfig.usersCollection)
-          .doc(widget.user.uid)
+      final userId = widget.user.uid;
+
+      // Check admin collection first
+      final adminDoc = await FirebaseFirestore.instance
+          .collection(AppConfig.adminCollection)
+          .doc(userId)
           .get();
 
-      if (userDoc.exists) {
+      if (adminDoc.exists) {
         setState(() {
-          _userRole = userDoc['role'];
+          _userRole = adminDoc['role'];
           _loading = false;
         });
-      } else {
-        // Create user document if it doesn't exist
-        await _createUserDocument();
+        return;
       }
-    } catch (e) {
-      _showError('Failed to load user data');
-      setState(() => _loading = false);
-    }
-  }
 
-  Future<void> _createUserDocument() async {
-    try {
-      await FirebaseFirestore.instance
-          .collection(AppConfig.usersCollection)
-          .doc(widget.user.uid)
-          .set({
-        'email': widget.user.email,
-        'name': widget.user.displayName ?? 'User',
-        'role': AppConfig.salesmanRole, // Default role
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // Check salesman collection
+      final salesmanDoc = await FirebaseFirestore.instance
+          .collection(AppConfig.salesmenCollection)
+          .doc(userId)
+          .get();
 
-      setState(() {
-        _userRole = AppConfig.salesmanRole;
-        _loading = false;
-      });
+      if (salesmanDoc.exists) {
+        setState(() {
+          _userRole = salesmanDoc['role'];
+          _loading = false;
+        });
+        return;
+      }
+
+      // If not found in any collection, show error and logout
+      _showError('User not found in system. Please contact administrator.');
+      await AuthService.logout();
+
     } catch (e) {
-      _showError('Failed to create user profile');
+      _showError('Failed to load user data: $e');
       setState(() => _loading = false);
     }
   }
@@ -104,6 +103,7 @@ class _UserRoleWrapperState extends State<UserRoleWrapper> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
       ),
     );
   }
@@ -122,6 +122,7 @@ class _UserRoleWrapperState extends State<UserRoleWrapper> {
       case AppConfig.salesmanRole:
         return const SalesmanDashboard();
       default:
+      // If no role found, show login screen
         return const LoginScreen();
     }
   }

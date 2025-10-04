@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/config.dart';
+import 'customer_service.dart';
 
 class EnquiryService {
   static final CollectionReference _enquiries =
@@ -74,6 +75,48 @@ class EnquiryService {
     return _enquiries
         .doc(enquiryId)
         .collection('updates')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  // Add these methods to your existing enquiry_service.dart
+
+  static Future<String> addEnquiryWithCustomer({
+    required String customerId,
+    required String customerName,
+    required String customerMobile,
+    required String product,
+    required String description,
+    required String assignedSalesmanId,
+    required String assignedSalesmanName,
+  }) async {
+    try {
+      final docRef = await _enquiries.add({
+        'customerId': customerId,
+        'customerName': customerName,
+        'customerMobile': customerMobile,
+        'product': product,
+        'description': description,
+        'assignedSalesmanId': assignedSalesmanId,
+        'assignedSalesmanName': assignedSalesmanName,
+        'status': AppConfig.pendingStatus,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Update customer enquiry count
+      await CustomerService.updateCustomerEnquiryCount(customerId, increment: true);
+
+      return docRef.id;
+    } catch (e) {
+      throw 'Failed to add enquiry: $e';
+    }
+  }
+
+// Get enquiries by customer
+  static Stream<QuerySnapshot> getEnquiriesByCustomer(String customerId) {
+    return _enquiries
+        .where('customerId', isEqualTo: customerId)
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
