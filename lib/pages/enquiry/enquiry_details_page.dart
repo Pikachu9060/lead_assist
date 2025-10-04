@@ -200,7 +200,22 @@ class _EnquiryDetailsPageState extends State<EnquiryDetailsPage> {
             ),
             const SizedBox(height: 16),
             const Divider(),
-
+            const SizedBox(height: 16),
+            /// --- salesman info Info ---
+            FutureBuilder<UserModel?>(
+              future: fetchUser(enquiry.assignedTo),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircularProgressIndicator();
+                } else if (snapshot.hasError || !snapshot.hasData) {
+                  return const Text('Customer not found');
+                }
+                final user = snapshot.data!;
+                return GestureDetector(onTap: ()=>_launchDialer(user.mobileNumber),child: Text('Assigned To : ${user.name} (${user.mobileNumber})'));
+              },
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
             /// --- Enquiry Info ---
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,

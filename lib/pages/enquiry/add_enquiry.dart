@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:leadassist/utils/secure_storage_service.dart';
 import 'package:uuid/uuid.dart';
 
 import '../customer/add_customer.dart';
@@ -18,6 +20,8 @@ class _AddEnquiryPageState extends State<AddEnquiryPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  final storage = SecureStorageService();
+  final user = FirebaseAuth.instance.currentUser;
   Map<String, dynamic>? selectedCustomer;
   final CollectionReference enquiryCollection = FirebaseFirestore.instance
       .collection('enquiry');
@@ -82,7 +86,9 @@ class _AddEnquiryPageState extends State<AddEnquiryPage> {
   }
 
   void submitEnquiry() async {
-    if (!_formKey.currentState!.validate()) {
+    final currentUserRole = ((await storage.getUserSession()) as Map<String, dynamic>)['${user?.uid}']['role'];
+
+    if (!_formKey.currentState!.validate() || currentUserRole != 'admin') {
       return;
     }
     final enquiryId = uuid.v4();

@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/user_model.dart';
+import '../../utils/secure_storage_service.dart';
 
 var uuid = Uuid();
 
@@ -17,6 +19,8 @@ class AddSalesmanPage extends StatefulWidget {
 class _AddSalesmanPageState extends State<AddSalesmanPage> {
   final TextEditingController _mobileController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final storage = SecureStorageService();
+  final user = FirebaseAuth.instance.currentUser;
 
   final CollectionReference usersCollection =
   FirebaseFirestore.instance.collection('users');
@@ -45,6 +49,8 @@ class _AddSalesmanPageState extends State<AddSalesmanPage> {
   }
 
   void saveSalesman() async {
+    final currentUserRole = ((await storage.getUserSession()) as Map<String, dynamic>)['${user?.uid}']['role'];
+    if(currentUserRole != 'admin')return;
     if (!_formKey.currentState!.validate()) return;
 
     String mobileNumber = "+91${_mobileController.text}";

@@ -63,10 +63,10 @@ class EnquiryUpdateTimeline extends StatelessWidget {
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 20),
                       padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.deepPurple.withValues(alpha: 0.5, red: 0.5, green: 0.5, blue: 0.5),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      // decoration: BoxDecoration(
+                      //   color: Colors.deepPurple.withValues(alpha: 0.5, red: 0.5, green: 0.5, blue: 0.5),
+                      //   borderRadius: BorderRadius.circular(8),
+                      // ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

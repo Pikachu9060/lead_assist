@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:leadassist/pages/enquiry/add_enquiry.dart';
 import 'package:leadassist/pages/salesman/salesman_list.dart';
@@ -6,11 +7,12 @@ import 'package:leadassist/widgets/enquiry_card.dart';
 
 import '../../models/enquiry_model.dart';
 import '../customer/customer_list_page.dart';
-import '../mobile_auth.dart';
+import '../auth.dart';
 import '../my_profile.dart';
 
 class EnquiryPageList extends StatefulWidget {
-  const EnquiryPageList({super.key});
+  final String role;
+  const EnquiryPageList({super.key, required this.role});
 
   @override
   State<EnquiryPageList> createState() => _EnquiryPageListState();
@@ -51,9 +53,33 @@ class _EnquiryPageListState extends State<EnquiryPageList> {
         // Perform logout logic
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const MobileAuth()),
+          MaterialPageRoute(builder: (_) => const Auth()),
         );
         break;
+    }
+  }
+
+  Stream<QuerySnapshot> _getEnquiryStream() {
+    if (widget.role == "admin") {
+      return enquiryCollection.orderBy("created_at", descending: true).snapshots();
+    } else {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      return enquiryCollection
+          .where("assignedTo", isEqualTo: uid)
+          .orderBy("created_at", descending: true)
+          .snapshots();
+    }
+  }
+
+  Future<void> logoutAndGoToAuth(BuildContext context) async {
+    await FirebaseAuth.instance.signOut();
+
+    if (context.mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const Auth()),
+            (Route<dynamic> route) => false, // remove all previous pages
+      );
     }
   }
 
@@ -61,7 +87,11 @@ class _EnquiryPageListState extends State<EnquiryPageList> {
   Widget build(BuildContext context) {
     // TODO: implement build
     return Scaffold(
-      appBar: AppBar(title: Text("Enquiries")),
+      appBar: AppBar(title: Text("Enquiries"), actions: [
+        IconButton(onPressed: () async{
+          await logoutAndGoToAuth(context);
+        }, icon: Icon(Icons.logout_outlined)),
+      ],),
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -83,16 +113,18 @@ class _EnquiryPageListState extends State<EnquiryPageList> {
               title: const Text("My Profile"),
               onTap: () => onSelectDrawerItem("My Profile"),
             ),
-            ListTile(
-              leading: const Icon(Icons.people),
-              title: const Text("Customers"),
-              onTap: () => onSelectDrawerItem("Customers"),
-            ),
-            ListTile(
-              leading: const Icon(Icons.group),
-              title: const Text("Team"),
-              onTap: () => onSelectDrawerItem("Team"),
-            ),
+            if(widget.role == 'admin')...[
+              ListTile(
+                leading: const Icon(Icons.people),
+                title: const Text("Customers"),
+                onTap: () => onSelectDrawerItem("Customers"),
+              ),
+              ListTile(
+                leading: const Icon(Icons.group),
+                title: const Text("Team"),
+                onTap: () => onSelectDrawerItem("Team"),
+              ),
+            ],
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),
@@ -105,9 +137,7 @@ class _EnquiryPageListState extends State<EnquiryPageList> {
       body: SingleChildScrollView(
         child: SafeArea(
           child: StreamBuilder(
-            stream: enquiryCollection
-                .orderBy("created_at", descending: true)
-                .snapshots(),
+            stream: _getEnquiryStream(),
             builder: (context, snapshot) {
               if (snapshot.hasError) {
                 return Center(child: Text("Error"));

@@ -1,6 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:leadassist/pages/enquiry/enquiry_page_list.dart';
+import 'package:leadassist/pages/auth.dart';
+import 'package:leadassist/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,7 +67,7 @@ class LeadAssistApp extends StatelessWidget {
           ),
         ),
       ),
-      home: EnquiryPageList(),
+      home: SplashPage(),
     );
   }
 }

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:leadassist/utils/secure_storage_service.dart';
 
 import 'package:uuid/uuid.dart';
 
@@ -21,6 +23,8 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   final TextEditingController _addressController = TextEditingController();
   final CollectionReference usersCollection = FirebaseFirestore.instance
       .collection('users');
+  final storage = SecureStorageService();
+  final user = FirebaseAuth.instance.currentUser;
   final _formKey = GlobalKey<FormState>();
 
   String? selectedAssignedTo;
@@ -44,6 +48,9 @@ class _AddCustomerPageState extends State<AddCustomerPage> {
   }
 
   void saveCustomer() async {
+    final currentUserRole = ((await storage.getUserSession()) as Map<String, dynamic>)['${user?.uid}']['role'];
+
+    if(currentUserRole != 'admin') return;
     if (!_formKey.currentState!.validate()) return;
 
     String mobileNumber = "+91${_mobileController.text}";
