@@ -42,12 +42,17 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      final userName = user?.displayName ?? user?.email ?? 'Unknown User';
+      final userDoc = await FirebaseFirestore.instance
+          .collection(widget.isSalesman ? 'salesmen' : 'admins')
+          .doc(user!.uid)
+          .get();
+
+      final userName = userDoc['name'] ?? user.email ?? 'Unknown User';
 
       await EnquiryService.addUpdateToEnquiry(
         enquiryId: widget.enquiryId,
         updateText: _updateController.text.trim(),
-        updatedBy: user!.uid,
+        updatedBy: user.uid,
         updatedByName: userName,
       );
 
@@ -73,6 +78,11 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
 
     try {
       await EnquiryService.updateEnquiryStatus(widget.enquiryId, _selectedStatus!);
+
+      // Update local state
+      setState(() {
+        widget.enquiryData['status'] = _selectedStatus;
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -115,14 +125,19 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
                 children: [
                   _buildEnquiryInfo(),
                   const SizedBox(height: 24),
-                  if (!widget.isSalesman) _buildStatusUpdateSection(),
+
+                  // ✅ STATUS UPDATE SECTION - AVAILABLE FOR SALESMAN
+                  _buildStatusUpdateSection(),
                   const SizedBox(height: 24),
+
                   _buildUpdatesSection(),
                 ],
               ),
             ),
           ),
-          if (!widget.isSalesman) _buildUpdateInputSection(),
+
+          // ✅ UPDATE INPUT SECTION - AVAILABLE FOR SALESMAN
+          _buildUpdateInputSection(),
         ],
       ),
     );
@@ -144,12 +159,18 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
             _buildInfoRow('Mobile', widget.enquiryData['customerMobile']),
             _buildInfoRow('Product', widget.enquiryData['product']),
             _buildInfoRow('Description', widget.enquiryData['description']),
-            _buildInfoRow('Assigned To', widget.enquiryData['assignedSalesmanName']),
+            if (!widget.isSalesman)
+              _buildInfoRow('Assigned To', widget.enquiryData['assignedSalesmanName']),
             _buildInfoRow('Status', _formatStatus(widget.enquiryData['status'])),
             if (widget.enquiryData['createdAt'] != null)
               _buildInfoRow(
                 'Created',
                 _formatDate(widget.enquiryData['createdAt']),
+              ),
+            if (widget.enquiryData['updatedAt'] != null)
+              _buildInfoRow(
+                'Last Updated',
+                _formatDate(widget.enquiryData['updatedAt']),
               ),
           ],
         ),
@@ -178,6 +199,7 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
     );
   }
 
+  // ✅ STATUS UPDATE - AVAILABLE FOR SALESMAN
   Widget _buildStatusUpdateSection() {
     return Card(
       child: Padding(
@@ -207,6 +229,14 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
                 _updateStatus();
               },
             ),
+            const SizedBox(height: 8),
+            Text(
+              'Current: ${_formatStatus(widget.enquiryData['status'])}',
+              style: TextStyle(
+                color: _getStatusColor(widget.enquiryData['status']),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -221,8 +251,16 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Updates',
+              'Visit Updates & Comments',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add updates after customer visits',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 16),
             StreamBuilder<QuerySnapshot>(
@@ -238,8 +276,8 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const EmptyStateWidget(
-                    message: 'No updates yet',
-                    icon: Icons.chat,
+                    message: 'No updates yet\nAdd your first visit update',
+                    icon: Icons.comment,
                   );
                 }
 
@@ -265,6 +303,7 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
     );
   }
 
+  // ✅ UPDATE INPUT - AVAILABLE FOR SALESMAN
   Widget _buildUpdateInputSection() {
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -272,27 +311,63 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
         color: Theme.of(context).cardColor,
         border: Border(top: BorderSide(color: Colors.grey.shade300)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: TextField(
-              controller: _updateController,
-              decoration: const InputDecoration(
-                hintText: 'Add an update...',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          Text(
+            widget.isSalesman ? 'Add Visit Update' : 'Add Update',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _updateController,
+                  decoration: InputDecoration(
+                    hintText: widget.isSalesman
+                        ? 'Enter customer visit details, feedback, or next steps...'
+                        : 'Add an update...',
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  maxLines: 3,
+                ),
               ),
-              maxLines: null,
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.send, color: Colors.blue),
+                onPressed: _addUpdate,
+                tooltip: 'Add update',
+              ),
+            ],
+          ),
+          if (widget.isSalesman) ...[
+            const SizedBox(height: 8),
+            Text(
+              '💡 Tip: Include visit date, customer feedback, and next actions',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 12,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.send),
-            onPressed: _addUpdate,
-          ),
+          ],
         ],
       ),
     );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'completed':
+        return Colors.green;
+      case 'in_progress':
+        return Colors.orange;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.blue;
+    }
   }
 
   String _formatStatus(String status) {
@@ -332,11 +407,22 @@ class _UpdateItem extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(
-              updateData['updatedByName'] ?? 'Unknown User',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            CircleAvatar(
+              backgroundColor: Colors.blue[100],
+              radius: 16,
+              child: Icon(
+                Icons.person,
+                size: 16,
+                color: Colors.blue[600],
+              ),
             ),
-            const Spacer(),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                updateData['updatedByName'] ?? 'Unknown User',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
             if (updateData['createdAt'] != null)
               Text(
                 _formatDate(updateData['createdAt']),
@@ -348,7 +434,10 @@ class _UpdateItem extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        Text(updateData['text'] ?? ''),
+        Padding(
+          padding: const EdgeInsets.only(left: 40.0),
+          child: Text(updateData['text'] ?? ''),
+        ),
       ],
     );
   }

@@ -9,7 +9,6 @@ void main() async {
 
   try {
     await Firebase.initializeApp();
-    await FCMService.initialize(); // Initialize FCM
     runApp(const LeadAssistApp());
   } catch (e) {
     runApp(

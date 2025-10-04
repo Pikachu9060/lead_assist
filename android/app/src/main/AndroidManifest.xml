@@ -3,6 +3,15 @@
         android:label="leadassist"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="lead_assist_channel" />
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:value="@mipmap/ic_launcher" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

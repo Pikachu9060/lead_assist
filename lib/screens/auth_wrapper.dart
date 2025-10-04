@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/config.dart';
 import '../services/auth_service.dart';
+import '../services/fcm_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import 'admin_dashboard.dart';
 import 'salesman_dashboard.dart';
@@ -53,10 +54,10 @@ class _UserRoleWrapperState extends State<UserRoleWrapper> {
   @override
   void initState() {
     super.initState();
-    _getUserRole();
+    _getUserRoleAndInitializeFCM();
   }
 
-  Future<void> _getUserRole() async {
+  Future<void> _getUserRoleAndInitializeFCM() async {
     try {
       final userId = widget.user.uid;
 
@@ -71,6 +72,8 @@ class _UserRoleWrapperState extends State<UserRoleWrapper> {
           _userRole = adminDoc['role'];
           _loading = false;
         });
+        // ✅ INITIALIZE FCM FOR USER
+        await FCMService.initializeForUser(userId, adminDoc['role']);
         return;
       }
 
@@ -85,11 +88,12 @@ class _UserRoleWrapperState extends State<UserRoleWrapper> {
           _userRole = salesmanDoc['role'];
           _loading = false;
         });
+        // ✅ INITIALIZE FCM FOR USER
+        await FCMService.initializeForUser(userId, salesmanDoc['role']);
         return;
       }
 
-      // If not found in any collection, show error and logout
-      _showError('User not found in system. Please contact administrator.');
+      _showError('User not found in system');
       await AuthService.logout();
 
     } catch (e) {

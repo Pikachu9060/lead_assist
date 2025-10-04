@@ -35,9 +35,10 @@ dependencies:
   intl: ^0.20.2
   share_plus: ^10.0.2
   url_launcher: ^6.3.2
+  device_info_plus: ^12.1.0
   uuid: ^4.5.1
   firebase_messaging: ^16.0.1
-  flutter_local_notifications: ^16.3.0
+  flutter_local_notifications: ^19.4.2
   flutter:
     sdk: flutter
 
