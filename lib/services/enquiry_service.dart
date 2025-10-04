@@ -77,4 +77,5 @@ class EnquiryService {
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
+
 }
