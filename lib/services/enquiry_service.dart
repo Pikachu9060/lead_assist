@@ -121,4 +121,27 @@ class EnquiryService {
         .snapshots();
   }
 
+  // Add this method to handle enquiry deletion and cleanup
+  static Future<void> deleteEnquiry(String enquiryId, String customerId) async {
+    try {
+      // First delete all updates in the subcollection
+      final updatesSnapshot = await _enquiries
+          .doc(enquiryId)
+          .collection('updates')
+          .get();
+
+      // Delete each update document
+      for (final doc in updatesSnapshot.docs) {
+        await doc.reference.delete();
+      }
+
+      // Then delete the main enquiry document
+      await _enquiries.doc(enquiryId).delete();
+
+      // Update customer enquiry count
+      await CustomerService.updateCustomerEnquiryCount(customerId, increment: false);
+    } catch (e) {
+      throw 'Failed to delete enquiry: $e';
+    }
+  }
 }

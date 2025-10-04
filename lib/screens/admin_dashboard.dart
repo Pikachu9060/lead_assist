@@ -6,9 +6,11 @@ import '../services/auth_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/error_widget.dart';
+import 'add_customer_screen.dart';
 import 'add_enquiry_screen.dart';
 import 'add_salesman_screen.dart';
 import 'create_admin_screen.dart';
+import 'enquiry_detail_screen.dart';
 import 'manage_admins_screen.dart';
 import 'manage_customers_screen.dart';
 import 'manage_salesmen_screen.dart';
@@ -105,6 +107,21 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        // Add Customer Button
+        Transform(
+          transform: Matrix4.translationValues(
+            0.0,
+            _translateButton.value * 3,
+            0.0,
+          ),
+          child: _buildSubFab(
+            icon: Icons.person_add,
+            label: 'Add Customer',
+            onTap: () => _navigateToAddCustomer(context),
+          ),
+        ),
+        const SizedBox(height: 8),
+
         // Add Admin Button
         Transform(
           transform: Matrix4.translationValues(
@@ -128,7 +145,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
             0.0,
           ),
           child: _buildSubFab(
-            icon: Icons.person_add,
+            icon: Icons.person_add_alt,
             label: 'Add Salesman',
             onTap: () => _navigateToAddSalesman(context),
           ),
@@ -171,22 +188,26 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     return Material(
       elevation: 4.0,
       borderRadius: BorderRadius.circular(25.0),
-      child: Container(
-        height: 40.0,
-        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18.0),
-            const SizedBox(width: 8.0),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14.0,
-                fontWeight: FontWeight.w500,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(25.0),
+        onTap: onTap, // This makes it clickable
+        child: Container(
+          height: 40.0,
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18.0),
+              const SizedBox(width: 8.0),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -200,6 +221,15 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
         SnackBar(content: Text('Logout failed: $e')),
       );
     }
+  }
+
+  void _navigateToAddCustomer(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AddCustomerScreen()),
+    ).then((_) {
+      _toggleExpansion(); // Close FAB after navigation
+    });
   }
 
   void _navigateToCreateAdmin(BuildContext context) {
@@ -340,8 +370,16 @@ class _EnquiriesList extends StatelessWidget {
   }
 
   void _navigateToEnquiryDetail(BuildContext context, String enquiryId, Map<String, dynamic> data) {
-    // You can implement enquiry detail navigation here
-    // Navigator.push(...);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EnquiryDetailScreen(
+          enquiryId: enquiryId,
+          enquiryData: data,
+          isSalesman: false, // Since this is admin dashboard
+        ),
+      ),
+    );
   }
 }
 
