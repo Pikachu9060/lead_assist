@@ -8,17 +8,88 @@ import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/error_widget.dart';
 import 'add_enquiry_screen.dart';
 import 'add_salesman_screen.dart';
-import 'enquiry_detail_screen.dart';
+import 'create_admin_screen.dart';
+import 'manage_admins_screen.dart';
+import 'manage_customers_screen.dart';
+import 'manage_salesmen_screen.dart';
 
-class AdminDashboard extends StatelessWidget {
+class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
+
+  @override
+  State<AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _translateButton;
+  bool _isExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _translateButton = Tween<double>(
+      begin: 100.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  void _toggleExpansion() {
+    setState(() {
+      _isExpanded = !_isExpanded;
+    });
+
+    if (_isExpanded) {
+      _animationController.forward();
+    } else {
+      _animationController.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: // Add these to the AppBar actions or create a drawer:
+      AppBar(
         title: const Text('Admin Dashboard'),
         actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              switch (value) {
+                case 'manage_admins':
+                  Navigator.push(context, MaterialPageRoute(
+                      builder: (context) => const ManageAdminsScreen()));
+                  break;
+                case 'manage_salesmen':
+                  Navigator.push(context, MaterialPageRoute(
+                      builder: (context) => const ManageSalesmenScreen()));
+                  break;
+                case 'manage_customers':
+                  Navigator.push(context, MaterialPageRoute(
+                      builder: (context) => const ManageCustomersScreen()));
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'manage_admins', child: Text('Manage Admins')),
+              const PopupMenuItem(value: 'manage_salesmen', child: Text('Manage Salesmen')),
+              const PopupMenuItem(value: 'manage_customers', child: Text('Manage Customers')),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _logout(context),
@@ -26,21 +97,97 @@ class AdminDashboard extends StatelessWidget {
         ],
       ),
       body: const _DashboardContent(),
-      floatingActionButton: Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: 'add_salesman',
-            onPressed: () => _navigateToAddSalesman(context),
-            child: const Icon(Icons.person_add),
+      floatingActionButton: _buildExpandableFab(),
+    );
+  }
+
+  Widget _buildExpandableFab() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        // Add Admin Button
+        Transform(
+          transform: Matrix4.translationValues(
+            0.0,
+            _translateButton.value * 2,
+            0.0,
           ),
-          const SizedBox(height: 16),
-          FloatingActionButton(
-            heroTag: 'add_enquiry',
-            onPressed: () => _navigateToAddEnquiry(context),
-            child: const Icon(Icons.add_comment),
+          child: _buildSubFab(
+            icon: Icons.admin_panel_settings,
+            label: 'Add Admin',
+            onTap: () => _navigateToCreateAdmin(context),
           ),
-        ],
+        ),
+        const SizedBox(height: 8),
+
+        // Add Salesman Button
+        Transform(
+          transform: Matrix4.translationValues(
+            0.0,
+            _translateButton.value,
+            0.0,
+          ),
+          child: _buildSubFab(
+            icon: Icons.person_add,
+            label: 'Add Salesman',
+            onTap: () => _navigateToAddSalesman(context),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Add Enquiry Button
+        Transform(
+          transform: Matrix4.translationValues(
+            0.0,
+            _translateButton.value * 0.5,
+            0.0,
+          ),
+          child: _buildSubFab(
+            icon: Icons.add_comment,
+            label: 'Add Enquiry',
+            onTap: () => _navigateToAddEnquiry(context),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Main FAB
+        FloatingActionButton(
+          heroTag: 'main_fab',
+          onPressed: _toggleExpansion,
+          child: AnimatedIcon(
+            icon: AnimatedIcons.menu_close,
+            progress: _animationController,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubFab({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      elevation: 4.0,
+      borderRadius: BorderRadius.circular(25.0),
+      child: Container(
+        height: 40.0,
+        padding: const EdgeInsets.symmetric(horizontal: 12.0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18.0),
+            const SizedBox(width: 8.0),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14.0,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -55,21 +202,35 @@ class AdminDashboard extends StatelessWidget {
     }
   }
 
-  static void _navigateToAddSalesman(BuildContext context) {
+  void _navigateToCreateAdmin(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const CreateAdminScreen()),
+    ).then((_) {
+      _toggleExpansion(); // Close FAB after navigation
+    });
+  }
+
+  void _navigateToAddSalesman(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const AddSalesmanScreen()),
-    );
+    ).then((_) {
+      _toggleExpansion(); // Close FAB after navigation
+    });
   }
 
-  static void _navigateToAddEnquiry(BuildContext context) {
+  void _navigateToAddEnquiry(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const AddEnquiryScreen()),
-    );
+    ).then((_) {
+      _toggleExpansion(); // Close FAB after navigation
+    });
   }
 }
 
+// Rest of the AdminDashboard content remains the same...
 class _DashboardContent extends StatelessWidget {
   const _DashboardContent();
 
@@ -179,15 +340,8 @@ class _EnquiriesList extends StatelessWidget {
   }
 
   void _navigateToEnquiryDetail(BuildContext context, String enquiryId, Map<String, dynamic> data) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EnquiryDetailScreen(
-          enquiryId: enquiryId,
-          enquiryData: data,
-        ),
-      ),
-    );
+    // You can implement enquiry detail navigation here
+    // Navigator.push(...);
   }
 }
 

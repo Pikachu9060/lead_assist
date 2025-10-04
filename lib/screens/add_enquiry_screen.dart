@@ -2,9 +2,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../services/enquiry_service.dart';
 import '../services/salesman_service.dart';
+import '../services/customer_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/error_widget.dart';
+import 'add_customer_screen.dart';
 
 class AddEnquiryScreen extends StatefulWidget {
   const AddEnquiryScreen({super.key});
@@ -16,13 +18,20 @@ class AddEnquiryScreen extends StatefulWidget {
 class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _customerNameController = TextEditingController();
+  final TextEditingController _customerMobileController = TextEditingController();
   final TextEditingController _productController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+
   String? _selectedSalesman;
   List<QueryDocumentSnapshot> _salesmen = [];
   bool _isLoading = false;
   bool _loadingSalesmen = true;
   String? _loadError;
+
+  // Customer state
+  String? _customerId;
+  bool _searchingCustomer = false;
+  bool _customerFound = false;
 
   @override
   void initState() {
@@ -45,8 +54,73 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     }
   }
 
+  Future<void> _searchCustomer() async {
+    if (_customerMobileController.text.trim().isEmpty) {
+      _showError('Please enter mobile number to search');
+      return;
+    }
+
+    setState(() => _searchingCustomer = true);
+
+    try {
+      final customer = await CustomerService.getCustomerByMobile(
+        _customerMobileController.text.trim(),
+      );
+
+      if (customer != null) {
+        // Customer found - auto-fill details
+        final customerData = customer.data() as Map<String, dynamic>;
+        setState(() {
+          _customerId = customer.id;
+          _customerNameController.text = customerData['name'] ?? '';
+          _customerFound = true;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Customer found! Details auto-filled.')),
+        );
+      } else {
+        // Customer not found - navigate to add customer screen
+        final newMobile = await _navigateToAddCustomer();
+        if (newMobile != null) {
+          _customerMobileController.text = newMobile;
+          // Retry search after adding customer
+          _searchCustomer();
+        }
+      }
+    } catch (e) {
+      _showError('Failed to search customer: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _searchingCustomer = false);
+      }
+    }
+  }
+
+  Future<String?> _navigateToAddCustomer() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddCustomerScreen(
+          initialMobileNumber: _customerMobileController.text.trim(),
+          onCustomerCreated: (mobileNumber) {
+            return mobileNumber;
+          },
+        ),
+      ),
+    );
+
+    return result;
+  }
+
   Future<void> _submitEnquiry() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_customerId == null) {
+      _showError('Please search and select a customer first');
+      return;
+    }
+
     if (_selectedSalesman == null) {
       _showError('Please select a salesman');
       return;
@@ -59,14 +133,15 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
             (doc) => doc.id == _selectedSalesman,
       );
 
-      await EnquiryService.addEnquiry({
-        'customerName': _customerNameController.text.trim(),
-        'product': _productController.text.trim(),
-        'description': _descriptionController.text.trim(),
-        'assignedSalesmanId': _selectedSalesman,
-        'assignedSalesmanName': selectedSalesman['name'],
-        'status': 'pending',
-      });
+      await EnquiryService.addEnquiryWithCustomer(
+        customerId: _customerId!,
+        customerName: _customerNameController.text.trim(),
+        customerMobile: _customerMobileController.text.trim(),
+        product: _productController.text.trim(),
+        description: _descriptionController.text.trim(),
+        assignedSalesmanId: _selectedSalesman!,
+        assignedSalesmanName: selectedSalesman['name'],
+      );
 
       if (!mounted) return;
 
@@ -90,6 +165,14 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
         backgroundColor: Colors.red,
       ),
     );
+  }
+
+  void _clearCustomer() {
+    setState(() {
+      _customerId = null;
+      _customerNameController.clear();
+      _customerFound = false;
+    });
   }
 
   @override
@@ -129,24 +212,24 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
         key: _formKey,
         child: Column(
           children: [
-            _buildTextField(
-              controller: _customerNameController,
-              label: 'Customer Name',
-              validator: (value) => value?.isEmpty ?? true
-                  ? 'Please enter customer name'
-                  : null,
-            ),
+            // Customer Search Section
+            _buildCustomerSearchSection(),
+            const SizedBox(height: 16),
+
+            // Customer Details (shown when customer found)
+            if (_customerFound) _buildCustomerDetailsSection(),
+
             const SizedBox(height: 16),
             _buildTextField(
               controller: _productController,
-              label: 'Product',
+              label: 'Product *',
               validator: (value) =>
               value?.isEmpty ?? true ? 'Please enter product' : null,
             ),
             const SizedBox(height: 16),
             _buildTextField(
               controller: _descriptionController,
-              label: 'Description',
+              label: 'Description *',
               maxLines: 4,
               validator: (value) =>
               value?.isEmpty ?? true ? 'Please enter description' : null,
@@ -161,9 +244,113 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     );
   }
 
+  Widget _buildCustomerSearchSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Customer Search',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _customerMobileController,
+                    decoration: const InputDecoration(
+                      labelText: 'Mobile Number *',
+                      prefixIcon: Icon(Icons.phone),
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter mobile number';
+                      }
+                      if (value.trim().length < 10) {
+                        return 'Please enter valid mobile number';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _searchingCustomer
+                    ? const CircularProgressIndicator()
+                    : ElevatedButton(
+                  onPressed: _searchCustomer,
+                  child: const Text('Search'),
+                ),
+              ],
+            ),
+            if (_customerFound)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  '✓ Customer verified',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomerDetailsSection() {
+    return Card(
+      color: Colors.green[50],
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Customer Details',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: _clearCustomer,
+                  tooltip: 'Clear customer',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildTextField(
+              controller: _customerNameController,
+              label: 'Customer Name *',
+              icon: Icons.person,
+              validator: (value) => value?.isEmpty ?? true
+                  ? 'Please enter customer name'
+                  : null,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Mobile: ${_customerMobileController.text}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            // Address will be stored but not shown in enquiry form
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
+    IconData? icon,
     int maxLines = 1,
     String? Function(String?)? validator,
   }) {
@@ -171,6 +358,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
+        prefixIcon: icon != null ? Icon(icon) : null,
         border: const OutlineInputBorder(),
       ),
       maxLines: maxLines,
@@ -182,13 +370,23 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     return DropdownButtonFormField<String>(
       value: _selectedSalesman,
       decoration: const InputDecoration(
-        labelText: 'Assign to Salesman',
+        labelText: 'Assign to Salesman *',
         border: OutlineInputBorder(),
       ),
       items: _salesmen.map((salesman) {
+        final region = salesman['region'] ?? 'No Region';
         return DropdownMenuItem(
           value: salesman.id,
-          child: Text(salesman['name']),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(salesman['name']),
+              Text(
+                'Region: $region',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
         );
       }).toList(),
       onChanged: (value) {
@@ -215,6 +413,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
   @override
   void dispose() {
     _customerNameController.dispose();
+    _customerMobileController.dispose();
     _productController.dispose();
     _descriptionController.dispose();
     super.dispose();

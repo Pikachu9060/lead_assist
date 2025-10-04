@@ -77,13 +77,6 @@ class AdminService {
     return await _adminCollection.doc(adminId).get();
   }
 
-  // Get all admins
-  static Stream<QuerySnapshot> getAllAdmins() {
-    return _adminCollection
-        .where('isActive', isEqualTo: true)
-        .snapshots();
-  }
-
   static String _handleAuthError(FirebaseAuthException e) {
     switch (e.code) {
       case 'email-already-in-use':
@@ -98,4 +91,64 @@ class AdminService {
         return 'An error occurred: ${e.message}';
     }
   }
+
+  static Future<List<QueryDocumentSnapshot>> getAllAdmins() async {
+    try {
+      final querySnapshot = await _adminCollection
+          .orderBy('createdAt', descending: true)
+          .get();
+      return querySnapshot.docs;
+    } catch (e) {
+      throw 'Failed to load admins: $e';
+    }
+  }
+
+  // Delete admin (soft delete - set isActive to false)
+  static Future<void> deleteAdmin(String adminId) async {
+    try {
+      // Don't allow deleting yourself
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser?.uid == adminId) {
+        throw 'You cannot delete your own account';
+      }
+
+      await _adminCollection.doc(adminId).update({
+        'isActive': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'deletedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw 'Failed to delete admin: $e';
+    }
+  }
+
+  // Reactivate admin
+  static Future<void> reactivateAdmin(String adminId) async {
+    try {
+      await _adminCollection.doc(adminId).update({
+        'isActive': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw 'Failed to reactivate admin: $e';
+    }
+  }
+
+  // Update admin profile
+  static Future<void> updateAdmin({
+    required String adminId,
+    required String name,
+    required String mobileNumber,
+  }) async {
+    try {
+      await _adminCollection.doc(adminId).update({
+        'name': name.trim(),
+        'mobileNumber': mobileNumber.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw 'Failed to update admin: $e';
+    }
+  }
+
 }

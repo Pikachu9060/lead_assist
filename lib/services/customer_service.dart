@@ -19,13 +19,11 @@ class CustomerService {
     }
   }
 
-  // Add new customer
+  // Add new customer (only name, mobile, address)
   static Future<String> addCustomer({
     required String name,
     required String mobileNumber,
-    String? email,
-    String? address,
-    String? company,
+    required String address,
   }) async {
     try {
       // Check if customer with same mobile already exists
@@ -37,9 +35,7 @@ class CustomerService {
       final docRef = await _customersCollection.add({
         'name': name.trim(),
         'mobileNumber': mobileNumber.trim(),
-        'email': email?.trim(),
-        'address': address?.trim(),
-        'company': company?.trim(),
+        'address': address.trim(),
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'totalEnquiries': 0,
@@ -71,13 +67,6 @@ class CustomerService {
     return await _customersCollection.doc(customerId).get();
   }
 
-  // Get all customers
-  static Stream<QuerySnapshot> getAllCustomers() {
-    return _customersCollection
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-  }
-
   // Update customer enquiry counts
   static Future<void> updateCustomerEnquiryCount(String customerId, {bool increment = true}) async {
     try {
@@ -97,5 +86,81 @@ class CustomerService {
         .where('name', isGreaterThanOrEqualTo: query)
         .where('name', isLessThan: query + 'z')
         .snapshots();
+  }
+
+  // Add these methods to your existing customer_service.dart
+
+// Get all customers
+  static Future<List<QueryDocumentSnapshot>> getAllCustomers() async {
+    try {
+      final querySnapshot = await _customersCollection
+          .orderBy('createdAt', descending: true)
+          .get();
+      return querySnapshot.docs;
+    } catch (e) {
+      throw 'Failed to load customers: $e';
+    }
+  }
+
+// Delete customer (hard delete - remove document)
+  static Future<void> deleteCustomer(String customerId) async {
+    try {
+      // Check if customer has active enquiries
+      final customerDoc = await _customersCollection.doc(customerId).get();
+      if (customerDoc.exists) {
+        final data = customerDoc.data() as Map<String, dynamic>;
+        final activeEnquiries = data['activeEnquiries'] ?? 0;
+
+        if (activeEnquiries > 0) {
+          throw 'Cannot delete customer with active enquiries';
+        }
+      }
+
+      await _customersCollection.doc(customerId).delete();
+    } catch (e) {
+      throw 'Failed to delete customer: $e';
+    }
+  }
+
+// Update customer profile
+  static Future<void> updateCustomer({
+    required String customerId,
+    required String name,
+    required String mobileNumber,
+    required String address,
+  }) async {
+    try {
+      // Check if another customer with same mobile exists (excluding current customer)
+      final querySnapshot = await _customersCollection
+          .where('mobileNumber', isEqualTo: mobileNumber.trim())
+          .where(FieldPath.documentId, isNotEqualTo: customerId)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        throw 'Another customer with mobile number $mobileNumber already exists';
+      }
+
+      await _customersCollection.doc(customerId).update({
+        'name': name.trim(),
+        'mobileNumber': mobileNumber.trim(),
+        'address': address.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw e.toString();
+    }
+  }
+  // Get customer by ID with error handling
+  static Future<Map<String, dynamic>> getCustomer(String customerId) async {
+    try {
+      final doc = await _customersCollection.doc(customerId).get();
+      if (!doc.exists) {
+        throw 'Customer not found';
+      }
+      return doc.data() as Map<String, dynamic>;
+    } catch (e) {
+      throw 'Failed to get customer: $e';
+    }
   }
 }
