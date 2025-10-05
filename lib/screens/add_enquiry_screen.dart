@@ -76,8 +76,8 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
           _customerFound = true;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Customer found! Details auto-filled.')),
+        if(mounted)
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Customer found! Details auto-filled.')),
         );
       } else {
         // Customer not found - navigate to add customer screen

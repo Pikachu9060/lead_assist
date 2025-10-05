@@ -7,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("androidx.multidex:multidex:2.0.1")
     // Import the Firebase BoM
     implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
@@ -26,7 +26,7 @@ dependencies {
 
 android {
     namespace = "com.example.leadassist"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -38,7 +38,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = "1.8"
     }
 
     defaultConfig {
