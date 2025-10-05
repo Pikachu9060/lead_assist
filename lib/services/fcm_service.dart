@@ -32,11 +32,11 @@ class FCMService {
     try {
       if (Platform.isAndroid) {
         final androidInfo = await _deviceInfo.androidInfo;
-        _currentDeviceId = androidInfo.id; // ANDROID_ID
+        _currentDeviceId = androidInfo.id.replaceAll('.', '-'); // ANDROID_ID
         print('Android Device ID: $_currentDeviceId');
       } else if (Platform.isIOS) {
         final iosInfo = await _deviceInfo.iosInfo;
-        _currentDeviceId = iosInfo.identifierForVendor;
+        _currentDeviceId = iosInfo.identifierForVendor?.replaceAll('.', '-');
         print('iOS Device ID: $_currentDeviceId');
       } else {
         _currentDeviceId = 'unknown_device';

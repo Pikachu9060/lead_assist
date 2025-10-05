@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:leadassist/services/fcm_service.dart';
 import '../services/enquiry_service.dart';
 import '../services/auth_service.dart';
 import '../shared/widgets/loading_indicator.dart';
@@ -36,8 +37,8 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     );
 
     _translateButton = Tween<double>(
-      begin: 100.0,
-      end: 0.0,
+      begin: 0.0,  // Changed from 100.0
+      end: 1.0,    // Changed from 0.0
     ).animate(CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeInOut,
@@ -106,66 +107,71 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
   Widget _buildExpandableFab() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Add Customer Button
-        Transform(
-          transform: Matrix4.translationValues(
-            0.0,
-            _translateButton.value * 3,
-            0.0,
-          ),
-          child: _buildSubFab(
-            icon: Icons.person_add,
-            label: 'Add Customer',
-            onTap: () => _navigateToAddCustomer(context),
+        // Add Enquiry
+        ScaleTransition(
+          scale: _animationController,
+          child: FadeTransition(
+            opacity: _animationController,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: _buildSubFab(
+                icon: Icons.add_comment,
+                label: 'Add Enquiry',
+                onTap: () => _navigateToAddEnquiry(context),
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
 
-        // Add Admin Button
-        Transform(
-          transform: Matrix4.translationValues(
-            0.0,
-            _translateButton.value * 2,
-            0.0,
-          ),
-          child: _buildSubFab(
-            icon: Icons.admin_panel_settings,
-            label: 'Add Admin',
-            onTap: () => _navigateToCreateAdmin(context),
+        // Add Salesman
+        ScaleTransition(
+          scale: _animationController,
+          child: FadeTransition(
+            opacity: _animationController,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: _buildSubFab(
+                icon: Icons.person_add_alt,
+                label: 'Add Salesman',
+                onTap: () => _navigateToAddSalesman(context),
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
 
-        // Add Salesman Button
-        Transform(
-          transform: Matrix4.translationValues(
-            0.0,
-            _translateButton.value,
-            0.0,
-          ),
-          child: _buildSubFab(
-            icon: Icons.person_add_alt,
-            label: 'Add Salesman',
-            onTap: () => _navigateToAddSalesman(context),
+        // Add Admin
+        ScaleTransition(
+          scale: _animationController,
+          child: FadeTransition(
+            opacity: _animationController,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: _buildSubFab(
+                icon: Icons.admin_panel_settings,
+                label: 'Add Admin',
+                onTap: () => _navigateToCreateAdmin(context),
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
 
-        // Add Enquiry Button
-        Transform(
-          transform: Matrix4.translationValues(
-            0.0,
-            _translateButton.value * 0.5,
-            0.0,
-          ),
-          child: _buildSubFab(
-            icon: Icons.add_comment,
-            label: 'Add Enquiry',
-            onTap: () => _navigateToAddEnquiry(context),
+        // Add Customer
+        ScaleTransition(
+          scale: _animationController,
+          child: FadeTransition(
+            opacity: _animationController,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: _buildSubFab(
+                icon: Icons.person_add,
+                label: 'Add Customer',
+                onTap: () => _navigateToAddCustomer(context),
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 16),
 
         // Main FAB
         FloatingActionButton(
@@ -215,6 +221,8 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
 
   static void _logout(BuildContext context) async {
     try {
+      // await FCMService.debugDeviceIdIssue();
+      await FCMService.removeCurrentDevice();
       await AuthService.logout();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
