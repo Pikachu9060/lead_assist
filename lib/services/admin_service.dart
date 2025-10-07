@@ -29,7 +29,6 @@ class AdminService {
     required String name,
     required String email,
     required String mobileNumber,
-    required String password,
   }) async {
     try {
       // Check if admin with same mobile already exists
@@ -44,17 +43,9 @@ class AdminService {
         throw 'Admin with email $email already exists';
       }
 
-      // Create Firebase Auth user
-      final UserCredential userCredential =
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
-      );
-
-      final userId = userCredential.user!.uid;
-
+      final docRef = _adminCollection.doc();
       // Add to admin collection
-      await _adminCollection.doc(userId).set({
+      await docRef.set({
         'name': name.trim(),
         'email': email.trim(),
         'mobileNumber': mobileNumber.trim(),
@@ -64,7 +55,7 @@ class AdminService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      return userId;
+      return docRef.id;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthError(e);
     } catch (e) {

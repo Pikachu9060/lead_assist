@@ -27,7 +27,6 @@ class SalesmanService {
     required String name,
     required String email,
     required String mobileNumber,
-    required String password,
     required String region,
   }) async {
     try {
@@ -51,7 +50,6 @@ class SalesmanService {
         'name': name.trim(),
         'email': email.trim(),
         'mobileNumber': mobileNumber.trim(),
-        'password': password.trim(), // Store password for reference (you might want to encrypt this)
         'region': region,
         'role': AppConfig.salesmanRole,
         'isActive': true,
