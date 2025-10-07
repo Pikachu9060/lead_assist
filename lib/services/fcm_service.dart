@@ -32,11 +32,11 @@ class FCMService {
     try {
       if (Platform.isAndroid) {
         final androidInfo = await _deviceInfo.androidInfo;
-        _currentDeviceId = androidInfo.id.replaceAll('.', '-'); // ANDROID_ID
+        _currentDeviceId = _formatDeviceId(androidInfo.id);
         print('Android Device ID: $_currentDeviceId');
       } else if (Platform.isIOS) {
         final iosInfo = await _deviceInfo.iosInfo;
-        _currentDeviceId = iosInfo.identifierForVendor?.replaceAll('.', '-');
+        _currentDeviceId = _formatDeviceId(iosInfo.identifierForVendor);
         print('iOS Device ID: $_currentDeviceId');
       } else {
         _currentDeviceId = 'unknown_device';
@@ -333,5 +333,10 @@ class FCMService {
       message.notification?.body ?? '',
       details,
     );
+  }
+
+  static String? _formatDeviceId(String? deviceId){
+    if (deviceId == null) return null;
+    return deviceId.replaceAll('.', '-');
   }
 }

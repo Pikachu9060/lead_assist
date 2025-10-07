@@ -384,7 +384,7 @@ class _EnquiriesList extends StatelessWidget {
         builder: (context) => EnquiryDetailScreen(
           enquiryId: enquiryId,
           enquiryData: data,
-          isSalesman: true, // Since this is admin dashboard
+          isSalesman: false, // Since this is admin dashboard
         ),
       ),
     );
