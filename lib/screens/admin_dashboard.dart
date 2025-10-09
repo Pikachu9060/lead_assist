@@ -260,8 +260,24 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
 }
 
 // Rest of the AdminDashboard content remains the same...
-class _DashboardContent extends StatelessWidget {
+class _DashboardContent extends StatefulWidget {
   const _DashboardContent();
+
+  @override
+  State<_DashboardContent> createState() => _DashboardContentState();
+}
+
+class _DashboardContentState extends State<_DashboardContent> {
+  final List<String> _selectedStatuses = [];
+  final List<String> _allStatuses = [
+    'pending',
+    'in_progress',
+    'completed',
+    'cancelled',
+  ];
+
+  String _searchType = 'customer';
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -276,13 +292,92 @@ class _DashboardContent extends StatelessWidget {
             'Recent Enquiries',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
+          const SizedBox(height: 8),
+
+          // ✅ --- Search Controls Row ---
+          Row(
+            children: [
+              // Search Type Dropdown
+              DropdownButton<String>(
+                value: _searchType,
+                items: const [
+                  DropdownMenuItem(value: 'customer', child: Text('Customer Name')),
+                  DropdownMenuItem(value: 'salesman', child: Text('Salesman Name')),
+                  DropdownMenuItem(value: 'enquiry', child: Text('Enquiry / Product')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _searchType = value!;
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              // Search Field
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Search...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // ✅ --- STATUS FILTER CHECKBOXES ---
+          Wrap(
+            spacing: 8,
+            children: _allStatuses.map((status) {
+              final selected = _selectedStatuses.contains(status);
+              return FilterChip(
+                label: Text(
+                  status.replaceAll('_', ' ').toUpperCase(),
+                  style: TextStyle(
+                    color: selected ? Colors.white : Colors.black,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                selected: selected,
+                selectedColor: Colors.blue,
+                onSelected: (bool value) {
+                  setState(() {
+                    if (value) {
+                      _selectedStatuses.add(status);
+                    } else {
+                      _selectedStatuses.remove(status);
+                    }
+                  });
+                },
+              );
+            }).toList(),
+          ),
+
           const SizedBox(height: 16),
-          Expanded(child: _EnquiriesList()),
+
+          // ✅ --- ENQUIRY LIST ---
+          Expanded(
+            child: _EnquiriesList(
+              selectedStatuses: _selectedStatuses,
+              searchType: _searchType,
+              searchQuery: _searchQuery,
+            ),
+          ),
         ],
       ),
     );
   }
 }
+
 
 class _WelcomeHeader extends StatelessWidget {
   const _WelcomeHeader();
@@ -323,28 +418,40 @@ class _WelcomeHeader extends StatelessWidget {
 }
 
 class _EnquiriesList extends StatelessWidget {
-  const _EnquiriesList();
+  final List<String> selectedStatuses;
+  final String searchType;
+  final String searchQuery;
+
+  const _EnquiriesList({
+    required this.selectedStatuses,
+    required this.searchType,
+    required this.searchQuery,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final stream = EnquiryService.searchEnquiries(
+      searchType: searchType,
+      query: searchQuery,
+      statuses: selectedStatuses,
+    );
+
     return StreamBuilder<QuerySnapshot>(
-      stream: EnquiryService.getAllEnquiries(),
+      stream: stream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const LoadingIndicator();
         }
-
         if (snapshot.hasError) {
           return CustomErrorWidget(
             message: 'Failed to load enquiries: ${snapshot.error}',
             onRetry: () {},
           );
         }
-
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return const EmptyStateWidget(
-            message: 'No enquiries yet\nTap + to create your first enquiry',
-            icon: Icons.inbox,
+            message: 'No enquiries found',
+            icon: Icons.search_off,
           );
         }
 
@@ -368,19 +475,24 @@ class _EnquiriesList extends StatelessWidget {
     );
   }
 
-  void _navigateToEnquiryDetail(BuildContext context, String enquiryId, Map<String, dynamic> data) {
+  void _navigateToEnquiryDetail(
+      BuildContext context,
+      String enquiryId,
+      Map<String, dynamic> data,
+      ) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EnquiryDetailScreen(
           enquiryId: enquiryId,
           enquiryData: data,
-          isSalesman: false, // Since this is admin dashboard
+          isSalesman: false,
         ),
       ),
     );
   }
 }
+
 
 class _EnquiryCard extends StatelessWidget {
   final String enquiryId;
