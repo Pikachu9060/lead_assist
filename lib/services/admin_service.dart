@@ -46,6 +46,7 @@ class AdminService {
       final docRef = _adminCollection.doc();
       // Add to admin collection
       await docRef.set({
+        'createdBy': FirebaseAuth.instance.currentUser?.uid,
         'name': name.trim(),
         'email': email.trim(),
         'mobileNumber': mobileNumber.trim(),

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../core/config.dart';
 
 class SalesmanService {
@@ -47,6 +48,7 @@ class SalesmanService {
 
       // Add to salesmen collection only (no Firebase Auth user creation)
       await docRef.set({
+        'createdBy': FirebaseAuth.instance.currentUser?.uid,
         'name': name.trim(),
         'email': email.trim(),
         'mobileNumber': mobileNumber.trim(),
