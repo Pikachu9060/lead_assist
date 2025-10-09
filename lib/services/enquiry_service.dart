@@ -144,4 +144,54 @@ class EnquiryService {
       throw 'Failed to delete enquiry: $e';
     }
   }
+
+  static Stream<QuerySnapshot> getEnquiriesByStatuses(List<String> statuses) {
+    final collection = _enquiries.orderBy('createdAt', descending: true);
+
+    if (statuses.isEmpty || statuses.contains('all')) {
+      return collection.snapshots();
+    }
+
+    return collection.where('status', whereIn: statuses).snapshots();
+  }
+
+  static Stream<QuerySnapshot> searchEnquiries({
+    required String searchType,
+    required String query,
+    required List<String> statuses,
+  }) {
+    final collection = _enquiries.orderBy('createdAt', descending: true);
+
+    // If no query, show based on status only
+    if (query.trim().isEmpty) {
+      if (statuses.isEmpty) return collection.snapshots();
+      return collection.where('status', whereIn: statuses).snapshots();
+    }
+
+    // Determine the field to search on
+    String field;
+    switch (searchType) {
+      case 'salesman':
+        field = 'assignedSalesmanName';
+        break;
+      case 'customer':
+        field = 'customerName';
+        break;
+      default:
+        field = 'product'; // treat as "enquiry name" or "product"
+    }
+
+    Query baseQuery = collection;
+    if (statuses.isNotEmpty) {
+      baseQuery = baseQuery.where('status', whereIn: statuses);
+    }
+
+    // Firestore doesn't support "contains" search easily;
+    // So we’ll simulate simple prefix search using startAt/endAt
+    return baseQuery
+        .where(field, isGreaterThanOrEqualTo: query)
+        .where(field, isLessThanOrEqualTo: '$query\uf8ff')
+        .snapshots();
+  }
+
 }
