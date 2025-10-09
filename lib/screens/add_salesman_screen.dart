@@ -15,8 +15,6 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _mobileController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -25,11 +23,6 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
 
   Future<void> _addSalesman() async {
     if (!_formKey.currentState!.validate()) return;
-
-    if (_passwordController.text != _confirmPasswordController.text) {
-      _showError('Passwords do not match');
-      return;
-    }
 
     if (_selectedRegion == null) {
       _showError('Please select a region');
@@ -43,7 +36,6 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         mobileNumber: _mobileController.text.trim(),
-        password: _passwordController.text.trim(),
         region: _selectedRegion!, // ✅ PASS REGION TO SERVICE
       );
 
@@ -128,42 +120,6 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
               const SizedBox(height: 16),
               _buildRegionDropdown(), // ✅ ADDED REGION DROPDOWN
               const SizedBox(height: 16),
-              _buildPasswordField(
-                controller: _passwordController,
-                label: 'Password',
-                obscureText: _obscurePassword,
-                onToggleVisibility: () {
-                  setState(() => _obscurePassword = !_obscurePassword);
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter password';
-                  }
-                  if (value.length < 6) {
-                    return 'Password must be at least 6 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildPasswordField(
-                controller: _confirmPasswordController,
-                label: 'Confirm Password',
-                obscureText: _obscureConfirmPassword,
-                onToggleVisibility: () {
-                  setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please confirm password';
-                  }
-                  if (value != _passwordController.text) {
-                    return 'Passwords do not match';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -255,8 +211,6 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _mobileController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 }

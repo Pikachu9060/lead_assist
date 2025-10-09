@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../core/config.dart';
 
 class SalesmanService {
@@ -27,7 +28,6 @@ class SalesmanService {
     required String name,
     required String email,
     required String mobileNumber,
-    required String password,
     required String region,
   }) async {
     try {
@@ -48,10 +48,10 @@ class SalesmanService {
 
       // Add to salesmen collection only (no Firebase Auth user creation)
       await docRef.set({
+        'createdBy': FirebaseAuth.instance.currentUser?.uid,
         'name': name.trim(),
         'email': email.trim(),
         'mobileNumber': mobileNumber.trim(),
-        'password': password.trim(), // Store password for reference (you might want to encrypt this)
         'region': region,
         'role': AppConfig.salesmanRole,
         'isActive': true,

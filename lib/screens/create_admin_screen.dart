@@ -14,8 +14,6 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _mobileController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -24,11 +22,6 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
   Future<void> _createAdmin() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_passwordController.text != _confirmPasswordController.text) {
-      _showError('Passwords do not match');
-      return;
-    }
-
     setState(() => _isLoading = true);
 
     try {
@@ -36,7 +29,6 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         mobileNumber: _mobileController.text.trim(),
-        password: _passwordController.text.trim(),
       );
 
       if (!mounted) return;
@@ -117,42 +109,6 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 16),
-              _buildPasswordField(
-                controller: _passwordController,
-                label: 'Password',
-                obscureText: _obscurePassword,
-                onToggleVisibility: () {
-                  setState(() => _obscurePassword = !_obscurePassword);
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter password';
-                  }
-                  if (value.length < 6) {
-                    return 'Password must be at least 6 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildPasswordField(
-                controller: _confirmPasswordController,
-                label: 'Confirm Password',
-                obscureText: _obscureConfirmPassword,
-                onToggleVisibility: () {
-                  setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please confirm password';
-                  }
-                  if (value != _passwordController.text) {
-                    return 'Passwords do not match';
-                  }
-                  return null;
-                },
-              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -218,8 +174,6 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _mobileController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 }
