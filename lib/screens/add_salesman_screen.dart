@@ -17,8 +17,6 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
   final TextEditingController _mobileController = TextEditingController();
 
   bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
   String? _selectedRegion; // ✅ ADDED REGION STATE
 
   Future<void> _addSalesman() async {
@@ -178,31 +176,6 @@ class _AddSalesmanScreenState extends State<AddSalesmanScreen> {
         }
         return null;
       },
-    );
-  }
-
-  Widget _buildPasswordField({
-    required TextEditingController controller,
-    required String label,
-    required bool obscureText,
-    required VoidCallback onToggleVisibility,
-    required String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.lock),
-        border: const OutlineInputBorder(),
-        suffixIcon: IconButton(
-          icon: Icon(
-            obscureText ? Icons.visibility : Icons.visibility_off,
-          ),
-          onPressed: onToggleVisibility,
-        ),
-      ),
-      obscureText: obscureText,
-      validator: validator,
     );
   }
 

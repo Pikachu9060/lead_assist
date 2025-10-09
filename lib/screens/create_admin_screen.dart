@@ -16,8 +16,6 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
   final TextEditingController _mobileController = TextEditingController();
 
   bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
 
   Future<void> _createAdmin() async {
     if (!_formKey.currentState!.validate()) return;
@@ -140,31 +138,6 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
         border: const OutlineInputBorder(),
       ),
       keyboardType: keyboardType,
-      validator: validator,
-    );
-  }
-
-  Widget _buildPasswordField({
-    required TextEditingController controller,
-    required String label,
-    required bool obscureText,
-    required VoidCallback onToggleVisibility,
-    required String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.lock),
-        border: const OutlineInputBorder(),
-        suffixIcon: IconButton(
-          icon: Icon(
-            obscureText ? Icons.visibility : Icons.visibility_off,
-          ),
-          onPressed: onToggleVisibility,
-        ),
-      ),
-      obscureText: obscureText,
       validator: validator,
     );
   }

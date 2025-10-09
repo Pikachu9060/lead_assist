@@ -25,7 +25,6 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
-  late Animation<double> _translateButton;
   bool _isExpanded = false;
 
   @override
@@ -35,14 +34,6 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-
-    _translateButton = Tween<double>(
-      begin: 0.0,  // Changed from 100.0
-      end: 1.0,    // Changed from 0.0
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
   }
 
   void _toggleExpansion() {

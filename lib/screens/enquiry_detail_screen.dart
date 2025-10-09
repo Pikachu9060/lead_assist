@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -27,7 +25,6 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
   final TextEditingController _updateController = TextEditingController();
   bool _isLoading = false;
   String? _selectedStatus;
-  bool _showUpdateDialogFlag = false;
 
   @override
   void initState() {
@@ -102,18 +99,12 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
   }
 
   void _showUpdateDialog() {
-    setState(() {
-      _showUpdateDialogFlag = true;
-    });
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _buildUpdateBottomSheet(),
     ).then((_) {
-      setState(() {
-        _showUpdateDialogFlag = false;
-      });
     });
   }
 
