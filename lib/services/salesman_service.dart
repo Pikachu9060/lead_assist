@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/config.dart';
@@ -30,6 +32,8 @@ class SalesmanService {
     required String mobileNumber,
     required String region,
   }) async {
+    StreamSubscription? subscription;
+
     try {
       // Check if salesman with same mobile already exists
       final mobileExists = await doesSalesmanExist(mobileNumber: mobileNumber);
@@ -45,8 +49,57 @@ class SalesmanService {
 
       // Generate a unique ID for the salesman
       final docRef = _salesmenCollection.doc();
+      final completer = Completer<String>();
 
-      // Add to salesmen collection only (no Firebase Auth user creation)
+      // Listen for when Firebase Auth user is created (authUid is set)
+      subscription = docRef.snapshots().listen((snapshot) async {
+        if (snapshot.exists) {
+          final data = snapshot.data() as Map<String, dynamic>;
+          final status = data['isUserCreated'] as bool?;
+
+          // When cloud function creates the Firebase Auth user
+          if (status == true) {
+            try {
+              // Send password reset email from Flutter
+              await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+              print('✅ Password reset email sent to salesman: $email');
+
+              // Update document to mark email as sent
+              await docRef.update({
+                'resetEmailSent': true,
+                'resetEmailSentAt': FieldValue.serverTimestamp(),
+                'status': 'active',
+              });
+
+              // Complete the completer with success
+              if (!completer.isCompleted) {
+                completer.complete(docRef.id);
+              }
+
+            } catch (e) {
+              print('❌ Failed to send reset email to salesman: $e');
+              // Mark error but still complete since user was created
+              await docRef.update({
+                'resetEmailError': e.toString(),
+                'status': 'active', // User is still created in Auth
+              });
+
+              if (!completer.isCompleted) {
+                completer.complete(docRef.id);
+              }
+            }
+          }
+
+          // If cloud function failed
+          else if (status == 'failed') {
+            if (!completer.isCompleted) {
+              completer.completeError('Salesman creation failed: ${data['error']}');
+            }
+          }
+        }
+      });
+
+      // Add to salesmen collection (this will trigger the cloud function)
       await docRef.set({
         'createdBy': FirebaseAuth.instance.currentUser?.uid,
         'name': name.trim(),
@@ -55,7 +108,8 @@ class SalesmanService {
         'region': region,
         'role': AppConfig.salesmanRole,
         'isActive': true,
-        'salesmanId': docRef.id, // Store the document ID as salesmanId
+        'salesmanId': docRef.id,
+        'status': 'creating', // Initial status for cloud function
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'totalEnquiries': 0,
@@ -63,9 +117,16 @@ class SalesmanService {
         'pendingEnquiries': 0,
       });
 
-      return docRef.id;
+      // Wait for cloud function to create Firebase Auth user and send email
+      return await completer.future.timeout(
+        Duration(seconds: 30),
+        onTimeout: () => throw 'Salesman creation timeout - cloud function took too long',
+      );
+
     } catch (e) {
       throw e.toString();
+    } finally {
+      subscription?.cancel();
     }
   }
 

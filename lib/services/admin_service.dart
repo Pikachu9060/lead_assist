@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 import '../core/config.dart';
 
 class AdminService {
@@ -24,12 +28,13 @@ class AdminService {
     }
   }
 
-  // Create admin user
   static Future<String> createAdmin({
     required String name,
     required String email,
     required String mobileNumber,
   }) async {
+    StreamSubscription? subscription;
+
     try {
       // Check if admin with same mobile already exists
       final mobileExists = await doesAdminExist(mobileNumber: mobileNumber);
@@ -44,7 +49,57 @@ class AdminService {
       }
 
       final docRef = _adminCollection.doc();
-      // Add to admin collection
+      final completer = Completer<String>();
+
+      // Listen for when Firebase Auth user is created (authUid is set)
+      subscription = docRef.snapshots().listen((snapshot) async {
+        if (snapshot.exists) {
+          final data = snapshot.data() as Map<String, dynamic>;
+          final status = data['isUserCreated'] as bool?;
+
+          // When cloud function creates the Firebase Auth user
+          if (status == true) {
+            try {
+              // Send password reset email from Flutter
+              await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+              print('✅ Password reset email sent to: $email');
+
+              // Update document to mark email as sent
+              await docRef.update({
+                'resetEmailSent': true,
+                'resetEmailSentAt': FieldValue.serverTimestamp(),
+                'status': 'active',
+              });
+
+              // Complete the completer with success
+              if (!completer.isCompleted) {
+                completer.complete(docRef.id);
+              }
+
+            } catch (e) {
+              print('❌ Failed to send reset email: $e');
+              // Mark error but still complete since user was created
+              await docRef.update({
+                'resetEmailError': e.toString(),
+                'status': 'active', // User is still created in Auth
+              });
+
+              if (!completer.isCompleted) {
+                completer.complete(docRef.id);
+              }
+            }
+          }
+
+          // If cloud function failed
+          else if (status == 'failed') {
+            if (!completer.isCompleted) {
+              completer.completeError('Admin creation failed: ${data['error']}');
+            }
+          }
+        }
+      });
+
+      // Add to admin collection (this triggers cloud function)
       await docRef.set({
         'createdBy': FirebaseAuth.instance.currentUser?.uid,
         'name': name.trim(),
@@ -52,15 +107,21 @@ class AdminService {
         'mobileNumber': mobileNumber.trim(),
         'role': AppConfig.adminRole,
         'isActive': true,
+        'status': 'creating', // Initial status
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      return docRef.id;
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthError(e);
+      // Wait for cloud function to create Firebase Auth user
+      return await completer.future.timeout(
+        Duration(seconds: 30),
+        onTimeout: () => throw 'Admin creation timeout - cloud function took too long',
+      );
+
     } catch (e) {
       throw e.toString();
+    } finally {
+      subscription?.cancel();
     }
   }
 
