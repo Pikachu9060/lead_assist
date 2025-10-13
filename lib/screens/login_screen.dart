@@ -155,8 +155,11 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const FlutterLogo(size: 80),
-                const SizedBox(height: 32),
+                Image.asset(
+                  'assets/images/app_icon.png',
+                  width: 200,
+                  height: 200,
+                ),
                 Text(
                   'Lead Assist',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
