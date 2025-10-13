@@ -12,10 +12,7 @@ import 'add_customer_screen.dart';
 class AddEnquiryScreen extends StatefulWidget {
   final String organizationId;
 
-  const AddEnquiryScreen({
-    super.key,
-    required this.organizationId
-  });
+  const AddEnquiryScreen({super.key, required this.organizationId});
 
   @override
   State<AddEnquiryScreen> createState() => _AddEnquiryScreenState();
@@ -24,7 +21,8 @@ class AddEnquiryScreen extends StatefulWidget {
 class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _customerNameController = TextEditingController();
-  final TextEditingController _customerMobileController = TextEditingController();
+  final TextEditingController _customerMobileController =
+      TextEditingController();
   final TextEditingController _productController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
@@ -48,8 +46,8 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
   Future<void> _loadSalesmen() async {
     try {
       final salesmen = await UserService.getUsersByOrganizationAndRole(
-          widget.organizationId,
-          'salesman'
+        widget.organizationId,
+        'salesman',
       );
       setState(() {
         _salesmen = salesmen;
@@ -72,7 +70,10 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     setState(() => _searchingCustomer = true);
 
     try {
-      final customer = await CustomerService.getCustomerByMobile(widget.organizationId,_customerMobileController.text.trim());
+      final customer = await CustomerService.getCustomerByMobile(
+        widget.organizationId,
+        _customerMobileController.text.trim(),
+      );
 
       if (customer != null) {
         // Customer found - auto-fill details
@@ -83,9 +84,11 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
           _customerFound = true;
         });
 
-        if(mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Customer found! Details auto-filled.')),
+            const SnackBar(
+              content: Text('Customer found! Details auto-filled.'),
+            ),
           );
         }
       } else {
@@ -114,7 +117,8 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
           initialMobileNumber: _customerMobileController.text.trim(),
           onCustomerCreated: (mobileNumber) {
             return mobileNumber;
-          }, organizationId: widget.organizationId,
+          },
+          organizationId: widget.organizationId,
         ),
       ),
     );
@@ -139,7 +143,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
 
     try {
       final selectedUser = _salesmen.firstWhere(
-            (doc) => doc.id == _selectedUserId,
+        (doc) => doc.id == _selectedUserId,
       );
 
       await EnquiryService.addEnquiryWithCustomer(
@@ -149,7 +153,8 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
         product: _productController.text.trim(),
         description: _descriptionController.text.trim(),
         assignedSalesmanId: _selectedUserId!,
-        assignedSalesmanName: selectedUser['name'], organizationId: widget.organizationId,
+        assignedSalesmanName: selectedUser['name'],
+        organizationId: widget.organizationId,
       );
 
       if (!mounted) return;
@@ -169,10 +174,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
@@ -187,9 +189,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Enquiry'),
-      ),
+      appBar: AppBar(title: const Text('Add Enquiry')),
       body: _isLoading
           ? const LoadingIndicator(message: 'Adding enquiry...')
           : _buildContent(),
@@ -202,10 +202,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     }
 
     if (_loadError != null) {
-      return CustomErrorWidget(
-        message: _loadError!,
-        onRetry: _loadSalesmen,
-      );
+      return CustomErrorWidget(message: _loadError!, onRetry: _loadSalesmen);
     }
 
     if (_salesmen.isEmpty) {
@@ -233,7 +230,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
               controller: _productController,
               label: 'Product *',
               validator: (value) =>
-              value?.isEmpty ?? true ? 'Please enter product' : null,
+                  value?.isEmpty ?? true ? 'Please enter product' : null,
             ),
             const SizedBox(height: 16),
             _buildTextField(
@@ -241,7 +238,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
               label: 'Description *',
               maxLines: 4,
               validator: (value) =>
-              value?.isEmpty ?? true ? 'Please enter description' : null,
+                  value?.isEmpty ?? true ? 'Please enter description' : null,
             ),
             const SizedBox(height: 16),
             _buildSalesmanDropdown(),
@@ -291,6 +288,10 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
                 _searchingCustomer
                     ? const CircularProgressIndicator()
                     : ElevatedButton(
+                  style: ButtonStyle(
+                    backgroundColor: MaterialStateProperty.all<Color>(Colors.purple),
+                    foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
+                  ),
                   onPressed: _searchCustomer,
                   child: const Text('Search'),
                 ),
@@ -340,9 +341,8 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
               controller: _customerNameController,
               label: 'Customer Name *',
               icon: Icons.person,
-              validator: (value) => value?.isEmpty ?? true
-                  ? 'Please enter customer name'
-                  : null,
+              validator: (value) =>
+                  value?.isEmpty ?? true ? 'Please enter customer name' : null,
             ),
             const SizedBox(height: 8),
             Text(
@@ -385,15 +385,30 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
         final region = user['region'] ?? 'No Region';
         return DropdownMenuItem(
           value: user.id,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(user['name']),
-              Text(
-                'Region: $region',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black,
               ),
-            ],
+              children: [
+                TextSpan(
+                  text: user['name'],
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600, // Semi-bold instead of bold
+                  ),
+                ),
+                const TextSpan(text: ' • '), // Using bullet instead of colon
+                TextSpan(
+                  text: region,
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontStyle: FontStyle.italic,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       }).toList(),
@@ -404,6 +419,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
         if (value == null) return 'Please select a salesman';
         return null;
       },
+      isExpanded: true,
     );
   }
 

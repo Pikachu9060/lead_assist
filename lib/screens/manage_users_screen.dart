@@ -1,6 +1,7 @@
 // screens/manage_users_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:leadassist/screens/add_user_screen.dart';
 import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
@@ -152,6 +153,19 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton(
+          child: Text("Add"),
+          onPressed: (){
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => AddUserScreen(
+                  organizationId: widget.organizationId,
+                  userRole: widget.userRole,
+                ),
+              ),
+            );
+      }),
       body: _loading
           ? const LoadingIndicator()
           : _users.isEmpty

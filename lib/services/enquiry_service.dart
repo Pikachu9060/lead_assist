@@ -44,7 +44,7 @@ class EnquiryService {
   }
 
   static Stream<QuerySnapshot> getAllEnquiries(String organizationId) {
-    return _getEnquiriesCollection(organizationId)
+    return  _getEnquiriesCollection(organizationId)
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
@@ -98,8 +98,6 @@ class EnquiryService {
     try {
       final docRef = await _getEnquiriesCollection(organizationId).add({
         'customerId': customerId,
-        'customerName': customerName,
-        'customerMobile': customerMobile,
         'product': product,
         'description': description,
         'assignedSalesmanId': assignedSalesmanId,
@@ -165,13 +163,19 @@ class EnquiryService {
     required String searchType,
     required String query,
     required List<String> statuses,
+    String? salesmanId, // Make salesmanId optional
   }) {
-    final collection = _getEnquiriesCollection(organizationId).orderBy('createdAt', descending: true);
+    Query baseQuery = _getEnquiriesCollection(organizationId).orderBy('createdAt', descending: true);
+
+    // Apply salesman filter if provided
+    if (salesmanId != null && salesmanId.isNotEmpty) {
+      baseQuery = baseQuery.where('assignedSalesmanId', isEqualTo: salesmanId);
+    }
 
     // If no query, show based on status only
     if (query.trim().isEmpty) {
-      if (statuses.isEmpty) return collection.snapshots();
-      return collection.where('status', whereIn: statuses).snapshots();
+      if (statuses.isEmpty) return baseQuery.snapshots();
+      return baseQuery.where('status', whereIn: statuses).snapshots();
     }
 
     // Determine the field to search on
@@ -187,7 +191,7 @@ class EnquiryService {
         field = 'product'; // treat as "enquiry name" or "product"
     }
 
-    Query baseQuery = collection;
+    // Apply status filter if statuses are provided
     if (statuses.isNotEmpty) {
       baseQuery = baseQuery.where('status', whereIn: statuses);
     }

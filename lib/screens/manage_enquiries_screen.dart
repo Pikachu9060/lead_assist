@@ -1,9 +1,11 @@
-// screens/manage_enquiries_screen.dart
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:leadassist/services/customer_service.dart';
+
 import '../services/enquiry_service.dart';
-import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
+import '../shared/widgets/loading_indicator.dart';
 import 'enquiry_detail_screen.dart';
 
 class ManageEnquiriesScreen extends StatefulWidget {
@@ -16,11 +18,11 @@ class ManageEnquiriesScreen extends StatefulWidget {
 }
 
 class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
-  final List<String> _selectedStatuses = ['pending', 'in_progress'];
+  final List<String> _selectedStatuses = ['all'];
   final List<String> _allStatuses = ['all', 'pending', 'in_progress', 'completed', 'cancelled'];
   String _searchType = 'customer';
   String _searchQuery = '';
-  bool _showFilters = false;
+  bool _showFilters = true;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +45,10 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
           if (_showFilters) _buildFilterSection(),
           Expanded(
             child: _EnquiriesList(
-              selectedStatuses: _selectedStatuses.contains('all') ? [] : _selectedStatuses,
+              key: ValueKey('enquiries_${_selectedStatuses.join('_')}_$_searchType$_searchQuery'),
+              selectedStatuses: _selectedStatuses.contains('all')
+                  ? ['pending', 'in_progress', 'completed', 'cancelled']
+                  : _selectedStatuses,
               searchType: _searchType,
               searchQuery: _searchQuery,
               organizationId: widget.organizationId,
@@ -51,6 +56,7 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
           ),
         ],
       ),
+
     );
   }
 
@@ -95,47 +101,109 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Status Filters
-            const Text('Filter by Status:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: _allStatuses.map((status) {
-                final isSelected = _selectedStatuses.contains(status);
-                return FilterChip(
-                  label: Text(
-                    status == 'all' ? 'All' : status.replaceAll('_', ' ').toUpperCase(),
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.black,
-                    ),
+            // Status Filters - Clickable Text
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: _showStatusSelectionDialog,
+                  child: const Row(
+                    children: [
+                      Text(
+                        'Filter by Status',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(Icons.arrow_drop_down, size: 16, color: Colors.blue),
+                    ],
                   ),
-                  selected: isSelected,
-                  onSelected: (selected) {
-                    setState(() {
-                      if (status == 'all') {
-                        _selectedStatuses.clear();
-                        _selectedStatuses.add('all');
-                      } else {
-                        _selectedStatuses.remove('all');
-                        if (selected) {
-                          _selectedStatuses.add(status);
-                        } else {
-                          _selectedStatuses.remove(status);
-                        }
-                      }
-                    });
-                  },
-                );
-              }).toList(),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
   }
+
+  void _showStatusSelectionDialog() {
+    List<String> tempSelectedStatuses = List.from(_selectedStatuses);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Select Statuses'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: _allStatuses.map((status) {
+                    final isSelected = tempSelectedStatuses.contains(status);
+                    return CheckboxListTile(
+                      title: Text(
+                        status == 'all'
+                            ? 'All Statuses'
+                            : status.replaceAll('_', ' ').toUpperCase(),
+                      ),
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        setStateDialog(() {
+                          if (status == 'all') {
+                            tempSelectedStatuses.clear();
+                            if (value == true) {
+                              tempSelectedStatuses.add('all');
+                            }
+                          } else {
+                            tempSelectedStatuses.remove('all');
+                            if (value == true) {
+                              tempSelectedStatuses.add(status);
+                            } else {
+                              tempSelectedStatuses.remove(status);
+                            }
+
+                            if (tempSelectedStatuses.isEmpty) {
+                              tempSelectedStatuses.add('all');
+                            }
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedStatuses.clear();
+                      _selectedStatuses.addAll(tempSelectedStatuses);
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 }
 
-class _EnquiriesList extends StatelessWidget {
+// Update _EnquiriesList to be stateful and maintain its own stream
+class _EnquiriesList extends StatefulWidget {
   final List<String> selectedStatuses;
   final String searchType;
   final String searchQuery;
@@ -146,19 +214,47 @@ class _EnquiriesList extends StatelessWidget {
     required this.searchType,
     required this.searchQuery,
     required this.organizationId,
-  });
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  State<_EnquiriesList> createState() => __EnquiriesListState();
+}
+
+class __EnquiriesListState extends State<_EnquiriesList> {
+  late Stream<QuerySnapshot> _enquiriesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _enquiriesStream = EnquiryService.searchEnquiries(
+      searchType: widget.searchType,
+      query: widget.searchQuery,
+      statuses: widget.selectedStatuses,
+      organizationId: widget.organizationId,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_EnquiriesList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only update the stream if the filter parameters actually changed
+    if (oldWidget.selectedStatuses.join() != widget.selectedStatuses.join() ||
+        oldWidget.searchType != widget.searchType ||
+        oldWidget.searchQuery != widget.searchQuery) {
+      _enquiriesStream = EnquiryService.searchEnquiries(
+        searchType: widget.searchType,
+        query: widget.searchQuery,
+        statuses: widget.selectedStatuses,
+        organizationId: widget.organizationId,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final stream = EnquiryService.searchEnquiries(
-      searchType: searchType,
-      query: searchQuery,
-      statuses: selectedStatuses,
-      organizationId: organizationId,
-    );
-
     return StreamBuilder<QuerySnapshot>(
-      stream: stream,
+      stream: _enquiriesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const LoadingIndicator();
@@ -184,7 +280,7 @@ class _EnquiriesList extends StatelessWidget {
             return _EnquiryCard(
               enquiryId: enquiry.id,
               data: data,
-              onTap: () => _navigateToEnquiryDetail(context, enquiry.id, data, organizationId),
+              onTap: () => _navigateToEnquiryDetail(context, enquiry.id, data, widget.organizationId),
             );
           },
         );
@@ -197,11 +293,13 @@ class _EnquiriesList extends StatelessWidget {
       String enquiryId,
       Map<String, dynamic> data,
       String organizationId,
-      ) {
+      ) async{
+    final userData = await CustomerService.getCustomerById(widget.organizationId, data["customerId"]);
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EnquiryDetailScreen(
+          userData: userData.data() as Map<String, dynamic>,
           enquiryId: enquiryId,
           enquiryData: data,
           organizationId: organizationId,
@@ -212,6 +310,7 @@ class _EnquiriesList extends StatelessWidget {
   }
 }
 
+// _EnquiryCard remains the same...
 class _EnquiryCard extends StatelessWidget {
   final String enquiryId;
   final Map<String, dynamic> data;

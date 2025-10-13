@@ -11,9 +11,11 @@ class EnquiryDetailScreen extends StatefulWidget {
   final Map<String, dynamic> enquiryData;
   final bool isSalesman;
   final String organizationId;
+  final Map<String, dynamic> userData;
 
   const EnquiryDetailScreen({
     super.key,
+    required this.userData,
     required this.enquiryId,
     required this.enquiryData,
     required this.organizationId,
@@ -163,8 +165,9 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            _buildInfoRow('Customer', widget.enquiryData['customerName']),
-            _buildInfoRow('Mobile', widget.enquiryData['customerMobile']),
+            _buildInfoRow('Customer', widget.userData['name']),
+            _buildInfoRow('Mobile', widget.userData['mobileNumber']),
+            _buildInfoRow('Address', widget.userData['address']),
             _buildInfoRow('Product', widget.enquiryData['product']),
             _buildInfoRow('Description', widget.enquiryData['description']),
             if (!widget.isSalesman)

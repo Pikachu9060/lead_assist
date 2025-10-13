@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/customer_service.dart';
 import '../services/enquiry_service.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
@@ -24,6 +25,10 @@ class SalesmanDashboard extends StatefulWidget {
 }
 
 class _SalesmanDashboardState extends State<SalesmanDashboard> {
+  final List<String> _selectedStatuses = ['all'];
+  final List<String> _allStatuses = ['all', 'pending', 'in_progress', 'completed', 'cancelled'];
+  bool _showFilters = true;
+
   Future<String?> _loadOrganizationName() async {
     final orgDoc = await FirebaseFirestore.instance
         .collection(AppConfig.organizationsCollection)
@@ -48,6 +53,9 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final userId = user?.uid;
+
     return Scaffold(
       appBar: AppBar(
         title: FutureBuilder(
@@ -64,78 +72,249 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () {
+              setState(() {
+                _showFilters = !_showFilters;
+              });
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _logout(context),
             tooltip: 'Logout',
           ),
         ],
       ),
-      body: _DashboardContent(organizationId: widget.organizationId),
+      body: userId == null
+          ? const CustomErrorWidget(message: 'User not authenticated')
+          : FutureBuilder<Map<String, dynamic>?>(
+        future: UserService.getUser(userId),
+        builder: (context, userSnapshot) {
+          if (userSnapshot.connectionState == ConnectionState.waiting) {
+            return const LoadingIndicator();
+          }
+
+          final userData = userSnapshot.data;
+          final userName = userData?['name'] ?? 'Salesman';
+          final userRegion = userData?['region'] ?? 'No region assigned';
+
+          return Column(
+            children: [
+              Expanded(
+                child: _DashboardContent(
+                  organizationId: widget.organizationId,
+                  salesmanId: userId,
+                  userName: userName,
+                  userEmail: user?.email,
+                  userRegion: userRegion,
+                  selectedStatuses: _selectedStatuses,
+                  showFilters: _showFilters,
+                  onStatusFilterChanged: (List<String> newStatuses) {
+                    setState(() {
+                      _selectedStatuses.clear();
+                      _selectedStatuses.addAll(newStatuses);
+                    });
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
 
 class _DashboardContent extends StatelessWidget {
   final String organizationId;
+  final String salesmanId;
+  final String userName;
+  final String? userEmail;
+  final String userRegion;
+  final List<String> selectedStatuses;
+  final bool showFilters;
+  final Function(List<String>) onStatusFilterChanged;
 
-  const _DashboardContent({required this.organizationId});
+  const _DashboardContent({
+    required this.organizationId,
+    required this.salesmanId,
+    required this.userName,
+    this.userEmail,
+    required this.userRegion,
+    required this.selectedStatuses,
+    required this.showFilters,
+    required this.onStatusFilterChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final userId = user?.uid;
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _WelcomeHeader(
+            userName: userName,
+            userEmail: userEmail,
+            userRegion: userRegion,
+          ),
+          const SizedBox(height: 24),
 
-    if (userId == null) {
-      return const CustomErrorWidget(message: 'User not authenticated');
+          // Stats Section - Always shows all enquiries (no filtering)
+          const Text(
+            'My Performance',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+
+          // Stats Cards - Always shows all enquiries
+          _SalesmanStats(
+            salesmanId: salesmanId,
+            organizationId: organizationId,
+          ),
+          const SizedBox(height: 24),
+
+          const Text(
+            'My Assigned Enquiries',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+
+          // Filter Section - Only status filter
+          if (showFilters) _buildFilterSection(context),
+          const SizedBox(height: 16),
+
+          Expanded(
+            child: _EnquiriesList(
+              key: ValueKey('enquiries_${selectedStatuses.join('_')}'),
+              salesmanId: salesmanId,
+              organizationId: organizationId,
+              selectedStatuses: selectedStatuses,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterSection(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.all(0),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // Status Filters - Clickable Text (Only filter option)
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () => _showStatusSelectionDialog(context),
+                  child: const Row(
+                    children: [
+                      Text(
+                        'Filter by Status',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(Icons.arrow_drop_down, size: 16, color: Colors.blue),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Show current selected statuses
+                Text(
+                  _getCurrentStatusText(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _getCurrentStatusText() {
+    if (selectedStatuses.contains('all') || selectedStatuses.length == 4) {
+      return 'All Statuses';
+    } else {
+      return selectedStatuses.map((status) => status.replaceAll('_', ' ')).join(', ');
     }
+  }
 
-    return FutureBuilder<Map<String, dynamic>?>(
-      future: UserService.getUser(userId),
-      builder: (context, userSnapshot) {
-        if (userSnapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingIndicator();
-        }
+  void _showStatusSelectionDialog(BuildContext context) {
+    List<String> tempSelectedStatuses = List.from(selectedStatuses);
+    final List<String> allStatuses = ['all', 'pending', 'in_progress', 'completed', 'cancelled'];
 
-        final userData = userSnapshot.data;
-        final userName = userData?['name'] ?? 'Salesman';
-        final userRegion = userData?['region'] ?? 'No region assigned';
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Select Statuses'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: allStatuses.map((status) {
+                    final isSelected = tempSelectedStatuses.contains(status);
+                    return CheckboxListTile(
+                      title: Text(
+                        status == 'all'
+                            ? 'All Statuses'
+                            : status.replaceAll('_', ' ').toUpperCase(),
+                      ),
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        setStateDialog(() {
+                          if (status == 'all') {
+                            tempSelectedStatuses.clear();
+                            if (value == true) {
+                              tempSelectedStatuses.add('all');
+                            }
+                          } else {
+                            tempSelectedStatuses.remove('all');
+                            if (value == true) {
+                              tempSelectedStatuses.add(status);
+                            } else {
+                              tempSelectedStatuses.remove(status);
+                            }
 
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _WelcomeHeader(
-                userName: userName,
-                userEmail: user?.email,
-                userRegion: userRegion,
-              ),
-              const SizedBox(height: 24),
-
-              // Stats Section
-              const Text(
-                'My Performance',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-
-              // Stats Cards
-              _SalesmanStats(salesmanId: userId, organizationId: organizationId),
-              const SizedBox(height: 24),
-
-              const Text(
-                'My Assigned Enquiries',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: _EnquiriesList(
-                  salesmanId: userId,
-                  organizationId: organizationId,
+                            if (tempSelectedStatuses.isEmpty) {
+                              tempSelectedStatuses.add('all');
+                            }
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
                 ),
               ),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    onStatusFilterChanged(tempSelectedStatuses);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -327,16 +506,58 @@ class _SalesmanStats extends StatelessWidget {
   }
 }
 
-class _EnquiriesList extends StatelessWidget {
+class _EnquiriesList extends StatefulWidget {
   final String salesmanId;
   final String organizationId;
+  final List<String> selectedStatuses;
 
-  const _EnquiriesList({required this.salesmanId, required this.organizationId});
+  const _EnquiriesList({
+    required this.salesmanId,
+    required this.organizationId,
+    required this.selectedStatuses,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  State<_EnquiriesList> createState() => __EnquiriesListState();
+}
+
+class __EnquiriesListState extends State<_EnquiriesList> {
+  late Stream<QuerySnapshot> _enquiriesStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateStream();
+  }
+
+  @override
+  void didUpdateWidget(_EnquiriesList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only update the stream if the status filter actually changed
+    if (oldWidget.selectedStatuses.join() != widget.selectedStatuses.join()) {
+      _updateStream();
+    }
+  }
+
+  void _updateStream() {
+    final effectiveStatuses = widget.selectedStatuses.contains('all')
+        ? ['pending', 'in_progress', 'completed', 'cancelled']
+        : widget.selectedStatuses;
+
+    _enquiriesStream = EnquiryService.searchEnquiries(
+      searchType: 'customer',
+      query: '',
+      statuses: effectiveStatuses,
+      organizationId: widget.organizationId,
+      salesmanId: widget.salesmanId,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: EnquiryService.getEnquiriesForSalesman(organizationId, salesmanId),
+      stream: _enquiriesStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const LoadingIndicator();
@@ -368,7 +589,7 @@ class _EnquiriesList extends StatelessWidget {
             return _EnquiryCard(
               enquiryId: enquiry.id,
               data: data,
-              onTap: () => _navigateToEnquiryDetail(context, enquiry.id, data, organizationId),
+              onTap: () => _navigateToEnquiryDetail(context, enquiry.id, data, widget.organizationId),
             );
           },
         );
@@ -376,11 +597,13 @@ class _EnquiriesList extends StatelessWidget {
     );
   }
 
-  void _navigateToEnquiryDetail(BuildContext context, String enquiryId, Map<String, dynamic> data, String organizationId) {
+  void _navigateToEnquiryDetail(BuildContext context, String enquiryId, Map<String, dynamic> data, String organizationId) async{
+    final userData = await CustomerService.getCustomerById(organizationId, data["customerId"]);
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EnquiryDetailScreen(
+          userData: userData.data() as Map<String, dynamic>,
           enquiryId: enquiryId,
           enquiryData: data,
           organizationId: organizationId,
@@ -502,8 +725,10 @@ class _EnquiryCard extends StatelessWidget {
         return Colors.orange;
       case 'cancelled':
         return Colors.red;
+      case 'pending':
+        return Colors.orange;
       default:
-        return Colors.blue;
+        return Colors.black;
     }
   }
 

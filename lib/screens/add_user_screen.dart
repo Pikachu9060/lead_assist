@@ -184,7 +184,7 @@ class _AddUserScreenState extends State<AddUserScreen> {
       ),
       items: AppConfig.regions.map((region) => DropdownMenuItem(
           value: region,
-          child: Text("$region"),
+          child: Text(region),
         )).toList(),
       onChanged: (value) {
         setState(() => _selectedRegion = value);
