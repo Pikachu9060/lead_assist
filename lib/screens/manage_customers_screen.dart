@@ -6,7 +6,8 @@ import '../shared/widgets/loading_indicator.dart';
 import 'edit_customer_screen.dart';
 
 class ManageCustomersScreen extends StatefulWidget {
-  const ManageCustomersScreen({super.key});
+  final String organizationId;
+  const ManageCustomersScreen({super.key, required this.organizationId});
 
   @override
   State<ManageCustomersScreen> createState() => _ManageCustomersScreenState();
@@ -25,7 +26,7 @@ class _ManageCustomersScreenState extends State<ManageCustomersScreen> {
 
   Future<void> _loadCustomers() async {
     try {
-      final customers = await CustomerService.getAllCustomers();
+      final customers = await CustomerService.getAllCustomers(widget.organizationId);
       setState(() {
         _customers = customers;
         _loading = false;
@@ -57,7 +58,7 @@ class _ManageCustomersScreenState extends State<ManageCustomersScreen> {
 
     if (confirmed == true) {
       try {
-        await CustomerService.deleteCustomer(customerId);
+        await CustomerService.deleteCustomer(widget.organizationId, customerId);
         _showSuccess('Customer deleted successfully');
         _loadCustomers(); // Refresh list
       } catch (e) {
@@ -265,7 +266,7 @@ class _ManageCustomersScreenState extends State<ManageCustomersScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EditCustomerScreen(customerId: customerId),
+        builder: (context) => EditCustomerScreen(organizationId: widget.organizationId,customerId: customerId),
       ),
     ).then((_) {
       // Refresh the list after returning from edit screen

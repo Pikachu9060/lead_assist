@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../config/config.dart';
+import 'package:leadassist/core/config.dart';
 
 class UpdateService {
   static final CollectionReference updatesCollection =
-  FirebaseFirestore.instance.collection(Config.updatesCollection);
+  FirebaseFirestore.instance.collection(AppConfig.updatesCollection);
 
   static Future<void> addUpdate(Map<String, dynamic> updateData) async {
     try {

@@ -1,46 +1,75 @@
+// screens/add_user_screen.dart
 import 'package:flutter/material.dart';
-import '../services/admin_service.dart';
+import '../services/user_service.dart';
+import '../core/config.dart';
 import '../shared/widgets/loading_indicator.dart';
 
-class CreateAdminScreen extends StatefulWidget {
-  const CreateAdminScreen({super.key});
+class AddUserScreen extends StatefulWidget {
+  final String organizationId;
+  final String userRole;
+
+  const AddUserScreen({
+    super.key,
+    required this.organizationId,
+    required this.userRole,
+  });
 
   @override
-  State<CreateAdminScreen> createState() => _CreateAdminScreenState();
+  State<AddUserScreen> createState() => _AddUserScreenState();
 }
 
-class _CreateAdminScreenState extends State<CreateAdminScreen> {
+class _AddUserScreenState extends State<AddUserScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _mobileController = TextEditingController();
 
   bool _isLoading = false;
+  String? _selectedRegion;
 
-  Future<void> _createAdmin() async {
+  Future<void> _addUser() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (widget.userRole == 'salesman' && _selectedRegion == null) {
+      _showError('Please select a region');
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      await AdminService.createAdmin(
+      await UserService.addUser(
+        organizationId: widget.organizationId,
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         mobileNumber: _mobileController.text.trim(),
+        role: widget.userRole,
+        region: _selectedRegion,
       );
 
       if (!mounted) return;
 
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Admin created successfully')),
+        SnackBar(content: Text('${_getRoleDisplayName()} added successfully')),
       );
     } catch (e) {
-      _showError('Failed to create admin: $e');
+      _showError('Failed to add ${_getRoleDisplayName().toLowerCase()}: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  String _getRoleDisplayName() {
+    switch (widget.userRole) {
+      case 'salesman':
+        return 'Salesman';
+      case 'manager':
+        return 'Manager';
+      default:
+        return 'User';
     }
   }
 
@@ -57,10 +86,10 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Admin'),
+        title: Text('Add ${_getRoleDisplayName()}'),
       ),
       body: _isLoading
-          ? const LoadingIndicator(message: 'Creating admin...')
+          ? const LoadingIndicator(message: 'Adding user...')
           : SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -107,13 +136,16 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              if (widget.userRole == 'salesman')
+                _buildRegionDropdown(),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _createAdmin,
-                  child: const Text('Create Admin'),
+                  onPressed: _addUser,
+                  child: Text('Add ${_getRoleDisplayName()}'),
                 ),
               ),
             ],
@@ -139,6 +171,30 @@ class _CreateAdminScreenState extends State<CreateAdminScreen> {
       ),
       keyboardType: keyboardType,
       validator: validator,
+    );
+  }
+
+  Widget _buildRegionDropdown() {
+    return DropdownButtonFormField<String>(
+      value: _selectedRegion,
+      decoration: const InputDecoration(
+        labelText: 'Assign Region',
+        prefixIcon: Icon(Icons.location_on),
+        border: OutlineInputBorder(),
+      ),
+      items: AppConfig.regions.map((region) => DropdownMenuItem(
+          value: region,
+          child: Text("$region"),
+        )).toList(),
+      onChanged: (value) {
+        setState(() => _selectedRegion = value);
+      },
+      validator: (value) {
+        if (value == null) {
+          return 'Please select a region';
+        }
+        return null;
+      },
     );
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/enquiry_service.dart';
+import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
 
@@ -9,11 +10,13 @@ class EnquiryDetailScreen extends StatefulWidget {
   final String enquiryId;
   final Map<String, dynamic> enquiryData;
   final bool isSalesman;
+  final String organizationId;
 
   const EnquiryDetailScreen({
     super.key,
     required this.enquiryId,
     required this.enquiryData,
+    required this.organizationId,
     this.isSalesman = false,
   });
 
@@ -42,17 +45,14 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      final userDoc = await FirebaseFirestore.instance
-          .collection(widget.isSalesman ? 'salesmen' : 'admins')
-          .doc(user!.uid)
-          .get();
-      final userName = userDoc['name'] ?? user.email ?? 'Unknown User';
+      final userData = await UserService.getUser(user!.uid);
+      final userName = userData['name'] ?? user.email ?? 'Unknown User';
 
       await EnquiryService.addUpdateToEnquiry(
         enquiryId: widget.enquiryId,
         updateText: _updateController.text.trim(),
         updatedBy: user.uid,
-        updatedByName: userName,
+        updatedByName: userName, organizationId: widget.organizationId,
       );
 
       _updateController.clear();
@@ -77,7 +77,7 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await EnquiryService.updateEnquiryStatus(widget.enquiryId, _selectedStatus!);
+      await EnquiryService.updateEnquiryStatus(widget.organizationId, widget.enquiryId, _selectedStatus!);
 
       // Update local state
       setState(() {
@@ -104,8 +104,7 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => _buildUpdateBottomSheet(),
-    ).then((_) {
-    });
+    );
   }
 
   void _hideUpdateDialog() {
@@ -139,11 +138,8 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
                 children: [
                   _buildEnquiryInfo(),
                   const SizedBox(height: 24),
-
-                  // ✅ STATUS UPDATE SECTION - AVAILABLE FOR SALESMAN
                   _buildStatusUpdateSection(),
                   const SizedBox(height: 24),
-
                   _buildTimelineSection(),
                 ],
               ),
@@ -211,7 +207,6 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
     );
   }
 
-  // ✅ STATUS UPDATE - AVAILABLE FOR SALESMAN
   Widget _buildStatusUpdateSection() {
     return Card(
       child: Padding(
@@ -255,7 +250,6 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
     );
   }
 
-  // ✅ TIMELINE SECTION
   Widget _buildTimelineSection() {
     return Card(
       child: Padding(
@@ -283,7 +277,7 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
             ),
             const SizedBox(height: 16),
             StreamBuilder<QuerySnapshot>(
-              stream: EnquiryService.getEnquiryUpdates(widget.enquiryId),
+              stream: EnquiryService.getEnquiryUpdates(widget.organizationId, widget.enquiryId),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const LoadingIndicator();
@@ -301,7 +295,6 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
                 }
 
                 final updates = snapshot.data!.docs;
-
                 return _buildTimeline(updates);
               },
             ),
@@ -312,11 +305,10 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
   }
 
   Widget _buildTimeline(List<QueryDocumentSnapshot> updates) {
-    // Sort updates by creation date (newest first)
     updates.sort((a, b) {
       final aTime = (a.data() as Map<String, dynamic>)['createdAt']?.toDate() ?? DateTime.now();
       final bTime = (b.data() as Map<String, dynamic>)['createdAt']?.toDate() ?? DateTime.now();
-      return bTime.compareTo(aTime); // Newest first
+      return bTime.compareTo(aTime);
     });
 
     return ListView.builder(
@@ -338,7 +330,6 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
     );
   }
 
-  // ✅ FAB FOR ADDING UPDATES
   Widget _buildAddUpdateFAB() {
     return FloatingActionButton.extended(
       onPressed: _showUpdateDialog,
@@ -349,7 +340,6 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
     );
   }
 
-  // ✅ BOTTOM SHEET FOR ADDING UPDATES
   Widget _buildUpdateBottomSheet() {
     return Container(
       padding: EdgeInsets.only(
@@ -456,7 +446,6 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
 
   String _formatDate(dynamic timestamp) {
     if (timestamp == null) return 'Unknown date';
-
     try {
       final date = timestamp.toDate();
       return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
@@ -466,7 +455,6 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
   }
 }
 
-// ✅ TIMELINE ITEM WIDGET
 class _TimelineItem extends StatelessWidget {
   final Map<String, dynamic> updateData;
   final bool isFirst;
@@ -483,17 +471,14 @@ class _TimelineItem extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Timeline line
         Column(
           children: [
-            // Top connector (hidden for first item)
             if (!isFirst)
               Container(
                 width: 2,
                 height: 20,
                 color: Colors.grey[300],
               ),
-            // Timeline dot
             Container(
               width: 12,
               height: 12,
@@ -503,7 +488,6 @@ class _TimelineItem extends StatelessWidget {
                 border: Border.all(color: Colors.white, width: 2),
               ),
             ),
-            // Bottom connector (hidden for last item)
             if (!isLast)
               Container(
                 width: 2,
@@ -513,7 +497,6 @@ class _TimelineItem extends StatelessWidget {
           ],
         ),
         const SizedBox(width: 16),
-        // Content
         Expanded(
           child: Container(
             margin: const EdgeInsets.only(bottom: 16),
@@ -572,7 +555,6 @@ class _TimelineItem extends StatelessWidget {
 
   String _formatDateTime(dynamic timestamp) {
     if (timestamp == null) return '';
-
     try {
       final date = timestamp.toDate();
       return '${_formatTime(date)} • ${_formatDate(date)}';

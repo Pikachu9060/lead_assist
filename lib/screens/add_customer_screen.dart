@@ -6,10 +6,12 @@ class AddCustomerScreen extends StatefulWidget {
   final String? initialMobileNumber;
   final Function(String)? onCustomerCreated;
 
+  final String organizationId;
+
   const AddCustomerScreen({
     super.key,
     this.initialMobileNumber,
-    this.onCustomerCreated,
+    this.onCustomerCreated, required this.organizationId,
   });
 
   @override
@@ -42,7 +44,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
       await CustomerService.addCustomer(
         name: _nameController.text.trim(),
         mobileNumber: _mobileController.text.trim(),
-        address: _addressController.text.trim(),
+        address: _addressController.text.trim(), organizationId: widget.organizationId,
       );
 
       if (!mounted) return;

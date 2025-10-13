@@ -1,40 +1,45 @@
+// screens/edit_user_screen.dart
 import 'package:flutter/material.dart';
-import '../services/salesman_service.dart';
+import '../services/user_service.dart';
 import '../core/config.dart';
 import '../shared/widgets/loading_indicator.dart';
 
-class EditSalesmanScreen extends StatefulWidget {
-  final String salesmanId;
+class EditUserScreen extends StatefulWidget {
+  final String userId;
+  final String organizationId;
 
-  const EditSalesmanScreen({super.key, required this.salesmanId});
+  const EditUserScreen({
+    super.key,
+    required this.userId,
+    required this.organizationId,
+  });
 
   @override
-  State<EditSalesmanScreen> createState() => _EditSalesmanScreenState();
+  State<EditUserScreen> createState() => _EditUserScreenState();
 }
 
-class _EditSalesmanScreenState extends State<EditSalesmanScreen> {
+class _EditUserScreenState extends State<EditUserScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _mobileController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
 
   String? _selectedRegion;
   bool _isLoading = false;
   bool _loadingData = true;
-  Map<String, dynamic>? _salesmanData;
+  Map<String, dynamic>? _userData;
 
   @override
   void initState() {
     super.initState();
-    _loadSalesmanData();
+    _loadUserData();
   }
 
-  Future<void> _loadSalesmanData() async {
+  Future<void> _loadUserData() async {
     try {
-      final data = await SalesmanService.getSalesman(widget.salesmanId);
+      final data = await UserService.getUser(widget.userId);
       setState(() {
-        _salesmanData = data;
+        _userData = data;
         _nameController.text = data['name'] ?? '';
         _emailController.text = data['email'] ?? '';
         _mobileController.text = data['mobileNumber'] ?? '';
@@ -42,15 +47,15 @@ class _EditSalesmanScreenState extends State<EditSalesmanScreen> {
         _loadingData = false;
       });
     } catch (e) {
-      _showError('Failed to load salesman data: $e');
+      _showError('Failed to load user data: $e');
       setState(() => _loadingData = false);
     }
   }
 
-  Future<void> _updateSalesman() async {
+  Future<void> _updateUser() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedRegion == null) {
+    if (_userData?['role'] == 'salesman' && _selectedRegion == null) {
       _showError('Please select a region');
       return;
     }
@@ -58,80 +63,25 @@ class _EditSalesmanScreenState extends State<EditSalesmanScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await SalesmanService.updateSalesman(
-        salesmanId: widget.salesmanId,
+      await UserService.updateUser(
+        userId: widget.userId,
+        organizationId: widget.organizationId,
         name: _nameController.text.trim(),
-        email: _emailController.text.trim(),
         mobileNumber: _mobileController.text.trim(),
-        region: _selectedRegion!,
+        region: _selectedRegion,
       );
 
       if (!mounted) return;
 
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Salesman updated successfully')),
+        const SnackBar(content: Text('User updated successfully')),
       );
     } catch (e) {
-      _showError('Failed to update salesman: $e');
+      _showError('Failed to update user: $e');
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _resetPassword() async {
-    if (_passwordController.text.isEmpty) {
-      _showError('Please enter a new password');
-      return;
-    }
-
-    if (_passwordController.text.length < 6) {
-      _showError('Password must be at least 6 characters');
-      return;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reset Password'),
-        content: const Text('Are you sure you want to reset the password?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Reset'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      setState(() => _isLoading = true);
-
-      try {
-        // Update password in Firestore
-        await SalesmanService.updateSalesmanPassword(
-          salesmanId: widget.salesmanId,
-          newPassword: _passwordController.text.trim(),
-        );
-
-        _passwordController.clear();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Password reset successfully')),
-          );
-        }
-      } catch (e) {
-        _showError('Failed to reset password: $e');
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
       }
     }
   }
@@ -149,17 +99,17 @@ class _EditSalesmanScreenState extends State<EditSalesmanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Salesman'),
+        title: const Text('Edit User'),
         actions: [
-          if (!_loadingData && _salesmanData != null)
+          if (!_loadingData && _userData != null)
             IconButton(
               icon: const Icon(Icons.save),
-              onPressed: _updateSalesman,
+              onPressed: _updateUser,
             ),
         ],
       ),
       body: _loadingData
-          ? const LoadingIndicator(message: 'Loading salesman data...')
+          ? const LoadingIndicator(message: 'Loading user data...')
           : _isLoading
           ? const LoadingIndicator(message: 'Updating...')
           : _buildContent(),
@@ -167,8 +117,8 @@ class _EditSalesmanScreenState extends State<EditSalesmanScreen> {
   }
 
   Widget _buildContent() {
-    if (_salesmanData == null) {
-      return const Center(child: Text('Salesman data not found'));
+    if (_userData == null) {
+      return const Center(child: Text('User data not found'));
     }
 
     return SingleChildScrollView(
@@ -177,7 +127,6 @@ class _EditSalesmanScreenState extends State<EditSalesmanScreen> {
         key: _formKey,
         child: Column(
           children: [
-            // Basic Information Card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -230,15 +179,13 @@ class _EditSalesmanScreenState extends State<EditSalesmanScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    _buildRegionDropdown(),
+                    if (_userData!['role'] == 'salesman')
+                      _buildRegionDropdown(),
                   ],
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
-            // Password Reset Card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -246,71 +193,29 @@ class _EditSalesmanScreenState extends State<EditSalesmanScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Password Reset',
+                      'User Information',
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Enter new password to reset (optional)',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
                     const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      decoration: const InputDecoration(
-                        labelText: 'New Password',
-                        prefixIcon: Icon(Icons.lock),
-                        border: OutlineInputBorder(),
-                        hintText: 'Leave empty to keep current password',
-                      ),
-                      obscureText: true,
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: _resetPassword,
-                        child: const Text('Reset Password'),
-                      ),
-                    ),
+                    _buildStatRow('Role', _userData!['role'] ?? 'Unknown'),
+                    _buildStatRow('Status', (_userData!['isActive'] ?? true) ? 'Active' : 'Inactive'),
+                    _buildStatRow('Created', _formatDate(_userData!['createdAt'])),
+                    if (_userData!['role'] == 'salesman') ...[
+                      _buildStatRow('Total Enquiries', _userData!['totalEnquiries'] ?? 0),
+                      _buildStatRow('Completed Enquiries', _userData!['completedEnquiries'] ?? 0),
+                      _buildStatRow('Pending Enquiries', _userData!['pendingEnquiries'] ?? 0),
+                    ],
                   ],
                 ),
               ),
             ),
-
             const SizedBox(height: 24),
-
-            // Statistics Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Performance Statistics',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildStatRow('Total Enquiries', _salesmanData!['totalEnquiries'] ?? 0),
-                    _buildStatRow('Completed Enquiries', _salesmanData!['completedEnquiries'] ?? 0),
-                    _buildStatRow('Pending Enquiries', _salesmanData!['pendingEnquiries'] ?? 0),
-                    _buildStatRow('Status', (_salesmanData!['isActive'] ?? true) ? 'Active' : 'Inactive'),
-                    _buildStatRow('Created', _formatDate(_salesmanData!['createdAt'])),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Update Button
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: _updateSalesman,
-                child: const Text('Update Salesman'),
+                onPressed: _updateUser,
+                child: const Text('Update User'),
               ),
             ),
           ],
@@ -405,7 +310,6 @@ class _EditSalesmanScreenState extends State<EditSalesmanScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _mobileController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 }

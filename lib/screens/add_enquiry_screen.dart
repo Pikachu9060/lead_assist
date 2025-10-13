@@ -1,15 +1,21 @@
+// screens/add_enquiry_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../services/enquiry_service.dart';
-import '../services/salesman_service.dart';
 import '../services/customer_service.dart';
+import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/error_widget.dart';
 import 'add_customer_screen.dart';
 
 class AddEnquiryScreen extends StatefulWidget {
-  const AddEnquiryScreen({super.key});
+  final String organizationId;
+
+  const AddEnquiryScreen({
+    super.key,
+    required this.organizationId
+  });
 
   @override
   State<AddEnquiryScreen> createState() => _AddEnquiryScreenState();
@@ -22,7 +28,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
   final TextEditingController _productController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
-  String? _selectedSalesman;
+  String? _selectedUserId;
   List<QueryDocumentSnapshot> _salesmen = [];
   bool _isLoading = false;
   bool _loadingSalesmen = true;
@@ -41,7 +47,10 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
 
   Future<void> _loadSalesmen() async {
     try {
-      final salesmen = await SalesmanService.getActiveSalesmen();
+      final salesmen = await UserService.getUsersByOrganizationAndRole(
+          widget.organizationId,
+          'salesman'
+      );
       setState(() {
         _salesmen = salesmen;
         _loadingSalesmen = false;
@@ -63,9 +72,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     setState(() => _searchingCustomer = true);
 
     try {
-      final customer = await CustomerService.getCustomerByMobile(
-        _customerMobileController.text.trim(),
-      );
+      final customer = await CustomerService.getCustomerByMobile(widget.organizationId,_customerMobileController.text.trim());
 
       if (customer != null) {
         // Customer found - auto-fill details
@@ -76,9 +83,11 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
           _customerFound = true;
         });
 
-        if(mounted)
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Customer found! Details auto-filled.')),
-        );
+        if(mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Customer found! Details auto-filled.')),
+          );
+        }
       } else {
         // Customer not found - navigate to add customer screen
         final newMobile = await _navigateToAddCustomer();
@@ -105,7 +114,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
           initialMobileNumber: _customerMobileController.text.trim(),
           onCustomerCreated: (mobileNumber) {
             return mobileNumber;
-          },
+          }, organizationId: widget.organizationId,
         ),
       ),
     );
@@ -121,7 +130,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
       return;
     }
 
-    if (_selectedSalesman == null) {
+    if (_selectedUserId == null) {
       _showError('Please select a salesman');
       return;
     }
@@ -129,8 +138,8 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final selectedSalesman = _salesmen.firstWhere(
-            (doc) => doc.id == _selectedSalesman,
+      final selectedUser = _salesmen.firstWhere(
+            (doc) => doc.id == _selectedUserId,
       );
 
       await EnquiryService.addEnquiryWithCustomer(
@@ -139,8 +148,8 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
         customerMobile: _customerMobileController.text.trim(),
         product: _productController.text.trim(),
         description: _descriptionController.text.trim(),
-        assignedSalesmanId: _selectedSalesman!,
-        assignedSalesmanName: selectedSalesman['name'],
+        assignedSalesmanId: _selectedUserId!,
+        assignedSalesmanName: selectedUser['name'], organizationId: widget.organizationId,
       );
 
       if (!mounted) return;
@@ -340,7 +349,6 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
               'Mobile: ${_customerMobileController.text}',
               style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            // Address will be stored but not shown in enquiry form
           ],
         ),
       ),
@@ -368,19 +376,19 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
 
   Widget _buildSalesmanDropdown() {
     return DropdownButtonFormField<String>(
-      value: _selectedSalesman,
+      value: _selectedUserId,
       decoration: const InputDecoration(
         labelText: 'Assign to Salesman *',
         border: OutlineInputBorder(),
       ),
-      items: _salesmen.map((salesman) {
-        final region = salesman['region'] ?? 'No Region';
+      items: _salesmen.map((user) {
+        final region = user['region'] ?? 'No Region';
         return DropdownMenuItem(
-          value: salesman.id,
+          value: user.id,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(salesman['name']),
+              Text(user['name']),
               Text(
                 'Region: $region',
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
@@ -390,7 +398,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
         );
       }).toList(),
       onChanged: (value) {
-        setState(() => _selectedSalesman = value);
+        setState(() => _selectedUserId = value);
       },
       validator: (value) {
         if (value == null) return 'Please select a salesman';

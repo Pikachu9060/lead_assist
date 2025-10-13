@@ -95,22 +95,9 @@ class FCMService {
     try {
       final batch = _firestore.batch();
 
-      // Remove from all admin documents
-      final adminSnapshot = await _firestore
-          .collection(AppConfig.adminCollection)
-          .where('fcmTokens.$_currentDeviceId', isNull: false)
-          .get();
-
-      for (final doc in adminSnapshot.docs) {
-        batch.update(doc.reference, {
-          'fcmTokens.$_currentDeviceId': FieldValue.delete(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      }
-
       // Remove from all salesman documents
       final salesmanSnapshot = await _firestore
-          .collection(AppConfig.salesmenCollection)
+          .collection(AppConfig.usersCollection)
           .where('fcmTokens.$_currentDeviceId', isNull: false)
           .get();
 
@@ -128,36 +115,22 @@ class FCMService {
     }
   }
 
-  // ✅ SAVE TOKEN FOR CURRENT USER WITH DEVICE ID
+  // In FCM service, replace the token saving logic:
   static Future<void> _saveTokenForCurrentUser(String token) async {
-    if (_currentUserId == null || _currentUserRole == null || _currentDeviceId == null) return;
-
-    final collection = _currentUserRole == AppConfig.adminRole
-        ? AppConfig.adminCollection
-        : AppConfig.salesmenCollection;
+    if (_currentUserId == null || _currentDeviceId == null) return;
 
     try {
       await _firestore
-          .collection(collection)
+          .collection(AppConfig.usersCollection) // Updated collection
           .doc(_currentUserId!)
           .update({
-        'fcmTokens.$_currentDeviceId': token, // Map structure: {deviceId: token}
+        'fcmTokens.$_currentDeviceId': token,
         'lastLoginAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
-
-      print('✅ Saved FCM token for user $_currentUserId on device: $_currentDeviceId');
+      print('✅ Saved FCM token for user $_currentUserId');
     } catch (e) {
       print('Error saving FCM token: $e');
-      // If document doesn't exist, create it (shouldn't happen in production)
-      await _firestore
-          .collection(collection)
-          .doc(_currentUserId!)
-          .set({
-        'fcmTokens': {_currentDeviceId: token},
-        'lastLoginAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
     }
   }
 
@@ -220,18 +193,10 @@ class FCMService {
     if (_currentUserId == null || _currentDeviceId == null) return;
 
     try {
-      // Remove from admin collection
-      await _firestore
-          .collection(AppConfig.adminCollection)
-          .doc(_currentUserId!)
-          .update({
-        'fcmTokens.$_currentDeviceId': FieldValue.delete(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
 
       // Remove from salesman collection
       await _firestore
-          .collection(AppConfig.salesmenCollection)
+          .collection(AppConfig.usersCollection)
           .doc(_currentUserId!)
           .update({
         'fcmTokens.$_currentDeviceId': FieldValue.delete(),

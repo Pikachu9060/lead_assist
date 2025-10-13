@@ -1,9 +1,11 @@
+// screens/auth_wrapper.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/config.dart';
 import '../services/auth_service.dart';
 import '../services/fcm_service.dart';
+import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import 'admin_dashboard.dart';
 import 'salesman_dashboard.dart';
@@ -29,6 +31,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
 
         if (snapshot.hasData && snapshot.data != null) {
+          print("data from Auth wrapper : ${snapshot.data}");
           return UserRoleWrapper(user: snapshot.data!);
         }
 
@@ -49,6 +52,7 @@ class UserRoleWrapper extends StatefulWidget {
 
 class _UserRoleWrapperState extends State<UserRoleWrapper> {
   String? _userRole;
+  String? _organizationId;
   bool _loading = true;
 
   @override
@@ -60,36 +64,17 @@ class _UserRoleWrapperState extends State<UserRoleWrapper> {
   Future<void> _getUserRoleAndInitializeFCM() async {
     try {
       final userId = widget.user.uid;
+      final userData = await AuthService.getUserData(userId);
 
-      // Check admin collection first
-      final adminDoc = await FirebaseFirestore.instance
-          .collection(AppConfig.adminCollection)
-          .doc(userId)
-          .get();
-
-      if (adminDoc.exists) {
+      if (userData != null) {
         setState(() {
-          _userRole = adminDoc['role'];
+          _userRole = userData['role'];
+          _organizationId = userData['organizationId'];
           _loading = false;
         });
-        // ✅ INITIALIZE FCM FOR USER
-        await FCMService.initializeForUser(userId, adminDoc['role']);
-        return;
-      }
 
-      // Check salesman collection
-      final salesmanDoc = await FirebaseFirestore.instance
-          .collection(AppConfig.salesmenCollection)
-          .doc(userId)
-          .get();
-
-      if (salesmanDoc.exists) {
-        setState(() {
-          _userRole = salesmanDoc['role'];
-          _loading = false;
-        });
-        // ✅ INITIALIZE FCM FOR USER
-        await FCMService.initializeForUser(userId, salesmanDoc['role']);
+        // Initialize FCM for user
+        await FCMService.initializeForUser(userId, userData['role']);
         return;
       }
 
@@ -123,12 +108,12 @@ class _UserRoleWrapperState extends State<UserRoleWrapper> {
     }
 
     switch (_userRole) {
-      case AppConfig.adminRole:
-        return const AdminDashboard();
-      case AppConfig.salesmanRole:
-        return const SalesmanDashboard();
+      case 'owner':
+      case 'manager':
+        return AdminDashboard(organizationId: _organizationId!);
+      case 'salesman':
+        return SalesmanDashboard(organizationId: _organizationId!);
       default:
-      // If no role found, show login screen
         return const LoginScreen();
     }
   }

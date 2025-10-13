@@ -1,0 +1,309 @@
+// screens/manage_enquiries_screen.dart
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/enquiry_service.dart';
+import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/empty_state.dart';
+import 'enquiry_detail_screen.dart';
+
+class ManageEnquiriesScreen extends StatefulWidget {
+  final String organizationId;
+
+  const ManageEnquiriesScreen({super.key, required this.organizationId});
+
+  @override
+  State<ManageEnquiriesScreen> createState() => _ManageEnquiriesScreenState();
+}
+
+class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
+  final List<String> _selectedStatuses = ['pending', 'in_progress'];
+  final List<String> _allStatuses = ['all', 'pending', 'in_progress', 'completed', 'cancelled'];
+  String _searchType = 'customer';
+  String _searchQuery = '';
+  bool _showFilters = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Manage Enquiries'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () {
+              setState(() {
+                _showFilters = !_showFilters;
+              });
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          if (_showFilters) _buildFilterSection(),
+          Expanded(
+            child: _EnquiriesList(
+              selectedStatuses: _selectedStatuses.contains('all') ? [] : _selectedStatuses,
+              searchType: _searchType,
+              searchQuery: _searchQuery,
+              organizationId: widget.organizationId,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterSection() {
+    return Card(
+      margin: const EdgeInsets.all(8),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            // Search Row
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    decoration: const InputDecoration(
+                      hintText: 'Search enquiries...',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                DropdownButton<String>(
+                  value: _searchType,
+                  items: const [
+                    DropdownMenuItem(value: 'customer', child: Text('Customer')),
+                    DropdownMenuItem(value: 'salesman', child: Text('Salesman')),
+                    DropdownMenuItem(value: 'enquiry', child: Text('Product')),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _searchType = value!;
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Status Filters
+            const Text('Filter by Status:', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: _allStatuses.map((status) {
+                final isSelected = _selectedStatuses.contains(status);
+                return FilterChip(
+                  label: Text(
+                    status == 'all' ? 'All' : status.replaceAll('_', ' ').toUpperCase(),
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    setState(() {
+                      if (status == 'all') {
+                        _selectedStatuses.clear();
+                        _selectedStatuses.add('all');
+                      } else {
+                        _selectedStatuses.remove('all');
+                        if (selected) {
+                          _selectedStatuses.add(status);
+                        } else {
+                          _selectedStatuses.remove(status);
+                        }
+                      }
+                    });
+                  },
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EnquiriesList extends StatelessWidget {
+  final List<String> selectedStatuses;
+  final String searchType;
+  final String searchQuery;
+  final String organizationId;
+
+  const _EnquiriesList({
+    required this.selectedStatuses,
+    required this.searchType,
+    required this.searchQuery,
+    required this.organizationId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final stream = EnquiryService.searchEnquiries(
+      searchType: searchType,
+      query: searchQuery,
+      statuses: selectedStatuses,
+      organizationId: organizationId,
+    );
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const LoadingIndicator();
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const EmptyStateWidget(
+            message: 'No enquiries found\nTry adjusting your filters',
+            icon: Icons.search_off,
+          );
+        }
+
+        final enquiries = snapshot.data!.docs;
+
+        return ListView.builder(
+          itemCount: enquiries.length,
+          itemBuilder: (context, index) {
+            final enquiry = enquiries[index];
+            final data = enquiry.data() as Map<String, dynamic>;
+
+            return _EnquiryCard(
+              enquiryId: enquiry.id,
+              data: data,
+              onTap: () => _navigateToEnquiryDetail(context, enquiry.id, data, organizationId),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _navigateToEnquiryDetail(
+      BuildContext context,
+      String enquiryId,
+      Map<String, dynamic> data,
+      String organizationId,
+      ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EnquiryDetailScreen(
+          enquiryId: enquiryId,
+          enquiryData: data,
+          organizationId: organizationId,
+          isSalesman: false,
+        ),
+      ),
+    );
+  }
+}
+
+class _EnquiryCard extends StatelessWidget {
+  final String enquiryId;
+  final Map<String, dynamic> data;
+  final VoidCallback onTap;
+
+  const _EnquiryCard({
+    required this.enquiryId,
+    required this.data,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: ListTile(
+        leading: _buildStatusIcon(data['status']),
+        title: Text(
+          data['customerName'] ?? 'Unknown Customer',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Product: ${data['product'] ?? 'Not specified'}'),
+            if (data['assignedSalesmanName'] != null)
+              Text('Salesman: ${data['assignedSalesmanName']}'),
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(
+                  _formatDate(data['createdAt']),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+              ],
+            ),
+          ],
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildStatusIcon(String status) {
+    IconData icon;
+    Color color;
+    String tooltip;
+
+    switch (status) {
+      case 'completed':
+        icon = Icons.check_circle;
+        color = Colors.green;
+        tooltip = 'Completed';
+        break;
+      case 'in_progress':
+        icon = Icons.refresh;
+        color = Colors.orange;
+        tooltip = 'In Progress';
+        break;
+      case 'cancelled':
+        icon = Icons.cancel;
+        color = Colors.red;
+        tooltip = 'Cancelled';
+        break;
+      default:
+        icon = Icons.pending;
+        color = Colors.blue;
+        tooltip = 'Pending';
+    }
+
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+    );
+  }
+
+  String _formatDate(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown date';
+    try {
+      final date = timestamp.toDate();
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return 'Invalid date';
+    }
+  }
+}

@@ -5,7 +5,9 @@ import '../shared/widgets/loading_indicator.dart';
 class EditCustomerScreen extends StatefulWidget {
   final String customerId;
 
-  const EditCustomerScreen({super.key, required this.customerId});
+  final String organizationId;
+
+  const EditCustomerScreen({super.key, required this.customerId, required  this.organizationId});
 
   @override
   State<EditCustomerScreen> createState() => _EditCustomerScreenState();
@@ -29,7 +31,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
 
   Future<void> _loadCustomerData() async {
     try {
-      final data = await CustomerService.getCustomer(widget.customerId);
+      final data = await CustomerService.getCustomer(widget.organizationId, widget.customerId);
       setState(() {
         _customerData = data;
         _nameController.text = data['name'] ?? '';
@@ -53,7 +55,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
         customerId: widget.customerId,
         name: _nameController.text.trim(),
         mobileNumber: _mobileController.text.trim(),
-        address: _addressController.text.trim(),
+        address: _addressController.text.trim(), organizationId: widget.organizationId,
       );
 
       if (!mounted) return;
@@ -382,7 +384,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
       setState(() => _isLoading = true);
 
       try {
-        await CustomerService.deleteCustomer(widget.customerId);
+        await CustomerService.deleteCustomer(widget.organizationId, widget.customerId);
 
         if (!mounted) return;
 

@@ -1,3 +1,4 @@
+// services/auth_service.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/config.dart';
@@ -12,6 +13,15 @@ class AuthService {
         email: email.trim(),
         password: password.trim(),
       );
+
+      // Get user data from platform_users collection
+      final user = await _getPlatformUserByEmail(email);
+
+      if (user == null) {
+        await _auth.signOut();
+        throw 'User not found in platform';
+      }
+
       return credential;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthError(e);
@@ -20,100 +30,48 @@ class AuthService {
     }
   }
 
-  static Future<void> logout() async {
-    await _auth.signOut();
-  }
-
-  // Check if user exists in any role collection (admin or salesman)
-  static Future<String?> getUserRole(String userId) async {
+  // Get platform user by email
+  static Future<DocumentSnapshot?> _getPlatformUserByEmail(String email) async {
     try {
-      // Check admin collection first
-      final adminDoc = await _firestore
-          .collection(AppConfig.adminCollection)
-          .doc(userId)
+      final query = await _firestore
+          .collection('platform_users')
+          .where('email', isEqualTo: email.trim())
+          .limit(1)
           .get();
-
-      if (adminDoc.exists) {
-        return adminDoc['role'];
-      }
-
-      // Check salesman collection
-      final salesmanDoc = await _firestore
-          .collection(AppConfig.salesmenCollection)
-          .doc(userId)
-          .get();
-
-      if (salesmanDoc.exists) {
-        return salesmanDoc['role'];
-      }
-
-      return null; // User not found in any role collection
-    } catch (e) {
-      throw 'Failed to get user role: $e';
-    }
-  }
-
-  // Get user data based on role
-  static Future<Map<String, dynamic>?> getUserData(String userId) async {
-    try {
-      // Check admin collection first
-      final adminDoc = await _firestore
-          .collection(AppConfig.adminCollection)
-          .doc(userId)
-          .get();
-
-      if (adminDoc.exists) {
-        return adminDoc.data();
-      }
-
-      // Check salesman collection
-      final salesmanDoc = await _firestore
-          .collection(AppConfig.salesmenCollection)
-          .doc(userId)
-          .get();
-
-      if (salesmanDoc.exists) {
-        return salesmanDoc.data();
-      }
-
-      return null; // User not found
+      return query.docs.isNotEmpty ? query.docs.first : null;
     } catch (e) {
       throw 'Failed to get user data: $e';
     }
   }
 
-  // Create admin user (for initial setup)
-  static Future<void> createAdminUser({
-    required String email,
-    required String password,
-    required String name,
-    required String mobileNumber,
-  }) async {
+  // Get user data with organization context
+  static Future<Map<String, dynamic>?> getUserData(String userId) async {
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
-      );
+      final userDoc = await _firestore.collection('platform_users').doc(userId).get();
+      if (!userDoc.exists) return null;
 
-      final userId = userCredential.user!.uid;
-
-      // Add to admin collection
-      await _firestore
-          .collection(AppConfig.adminCollection)
-          .doc(userId)
-          .set({
-        'email': email,
-        'name': name,
-        'mobileNumber': mobileNumber,
-        'role': AppConfig.adminRole,
-        'isActive': true,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } on FirebaseAuthException catch (e) {
-      throw _handleAuthError(e);
+      final userData = userDoc.data()!;
+      return userData;
     } catch (e) {
-      throw 'Failed to create admin: $e';
+      throw 'Failed to get user data: $e';
+    }
+  }
+
+  static Future<void> logout() async {
+    await _auth.signOut();
+  }
+
+  // Check if email exists in platform
+  static Future<bool> doesEmailExist(String email) async {
+    try {
+      final query = await _firestore
+          .collection('platform_users')
+          .where('email', isEqualTo: email.trim())
+          .limit(1)
+          .get();
+      return query.docs.isNotEmpty;
+    } catch (e) {
+      throw 'Failed to check email: $e';
     }
   }
 
@@ -125,69 +83,6 @@ class AuthService {
       throw _handleAuthError(e);
     } catch (e) {
       throw 'Failed to reset password: $e';
-    }
-  }
-
-  // Update user profile
-  static Future<void> updateProfile({
-    required String userId,
-    required String name,
-    required String mobileNumber,
-  }) async {
-    try {
-      // Determine which collection the user belongs to
-      final role = await getUserRole(userId);
-
-      if (role == AppConfig.adminRole) {
-        await _firestore
-            .collection(AppConfig.adminCollection)
-            .doc(userId)
-            .update({
-          'name': name.trim(),
-          'mobileNumber': mobileNumber.trim(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } else if (role == AppConfig.salesmanRole) {
-        await _firestore
-            .collection(AppConfig.salesmenCollection)
-            .doc(userId)
-            .update({
-          'name': name.trim(),
-          'mobileNumber': mobileNumber.trim(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } else {
-        throw 'User role not found';
-      }
-    } catch (e) {
-      throw 'Failed to update profile: $e';
-    }
-  }
-
-  // Check if email exists in any role
-  static Future<bool> doesEmailExist(String email) async {
-    try {
-      // Check admin collection
-      final adminQuery = await _firestore
-          .collection(AppConfig.adminCollection)
-          .where('email', isEqualTo: email.trim())
-          .limit(1)
-          .get();
-
-      if (adminQuery.docs.isNotEmpty) {
-        return true;
-      }
-
-      // Check salesman collection
-      final salesmanQuery = await _firestore
-          .collection(AppConfig.salesmenCollection)
-          .where('email', isEqualTo: email.trim())
-          .limit(1)
-          .get();
-
-      return salesmanQuery.docs.isNotEmpty;
-    } catch (e) {
-      throw 'Failed to check email: $e';
     }
   }
 
@@ -213,7 +108,5 @@ class AuthService {
   }
 
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
-
-  // Get current user
   static User? get currentUser => _auth.currentUser;
 }

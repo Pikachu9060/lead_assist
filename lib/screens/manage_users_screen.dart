@@ -1,46 +1,57 @@
+// screens/manage_users_screen.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../services/salesman_service.dart';
+import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
-import 'edit_salesman_screen.dart';
+import 'edit_user_screen.dart';
 
-class ManageSalesmenScreen extends StatefulWidget {
-  const ManageSalesmenScreen({super.key});
+class ManageUsersScreen extends StatefulWidget {
+  final String organizationId;
+  final String userRole;
+
+  const ManageUsersScreen({
+    super.key,
+    required this.organizationId,
+    required this.userRole,
+  });
 
   @override
-  State<ManageSalesmenScreen> createState() => _ManageSalesmenScreenState();
+  State<ManageUsersScreen> createState() => _ManageUsersScreenState();
 }
 
-class _ManageSalesmenScreenState extends State<ManageSalesmenScreen> {
-  List<QueryDocumentSnapshot> _salesmen = [];
+class _ManageUsersScreenState extends State<ManageUsersScreen> {
+  List<QueryDocumentSnapshot> _users = [];
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadSalesmen();
+    _loadUsers();
   }
 
-  Future<void> _loadSalesmen() async {
+  Future<void> _loadUsers() async {
     try {
-      final salesmen = await SalesmanService.getAllSalesmen();
+      final users = await UserService.getUsersByOrganizationAndRole(
+          widget.organizationId,
+          widget.userRole
+      );
       setState(() {
-        _salesmen = salesmen;
+        _users = users;
         _loading = false;
       });
     } catch (e) {
-      _showError('Failed to load salesmen: $e');
+      _showError('Failed to load users: $e');
       setState(() => _loading = false);
     }
   }
 
-  Future<void> _deleteSalesman(String salesmanId, String salesmanName) async {
+  Future<void> _deleteUser(String userId, String userName) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Salesman'),
-        content: Text('Are you sure you want to delete $salesmanName?'),
+        title: const Text('Delete User'),
+        content: Text('Are you sure you want to delete $userName?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -56,27 +67,27 @@ class _ManageSalesmenScreenState extends State<ManageSalesmenScreen> {
 
     if (confirmed == true) {
       try {
-        await SalesmanService.deleteSalesman(salesmanId);
-        _showSuccess('Salesman deleted successfully');
-        _loadSalesmen(); // Refresh list
+        await UserService.updateUserStatus(userId, false);
+        _showSuccess('User deleted successfully');
+        _loadUsers();
       } catch (e) {
-        _showError('Failed to delete salesman: $e');
+        _showError('Failed to delete user: $e');
       }
     }
   }
 
-  Future<void> _reactivateSalesman(String salesmanId) async {
+  Future<void> _reactivateUser(String userId) async {
     try {
-      await SalesmanService.reactivateSalesman(salesmanId);
-      _showSuccess('Salesman reactivated successfully');
-      _loadSalesmen();
+      await UserService.reactivateUser(userId);
+      _showSuccess('User reactivated successfully');
+      _loadUsers();
     } catch (e) {
-      _showError('Failed to reactivate salesman: $e');
+      _showError('Failed to reactivate user: $e');
     }
   }
 
-  void _showSalesmanStats(QueryDocumentSnapshot salesman) {
-    final data = salesman.data() as Map<String, dynamic>;
+  void _showUserStats(QueryDocumentSnapshot user) {
+    final data = user.data() as Map<String, dynamic>;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -85,12 +96,15 @@ class _ManageSalesmenScreenState extends State<ManageSalesmenScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Total Enquiries: ${data['totalEnquiries'] ?? 0}'),
-            Text('Completed: ${data['completedEnquiries'] ?? 0}'),
-            Text('Pending: ${data['pendingEnquiries'] ?? 0}'),
-            const SizedBox(height: 16),
+            if (widget.userRole == 'salesman') ...[
+              Text('Total Enquiries: ${data['totalEnquiries'] ?? 0}'),
+              Text('Completed: ${data['completedEnquiries'] ?? 0}'),
+              Text('Pending: ${data['pendingEnquiries'] ?? 0}'),
+              const SizedBox(height: 8),
+            ],
             Text('Region: ${data['region'] ?? 'Not assigned'}'),
             Text('Status: ${(data['isActive'] ?? true) ? 'Active' : 'Inactive'}'),
+            Text('Role: ${data['role'] ?? 'Unknown'}'),
           ],
         ),
         actions: [
@@ -115,27 +129,38 @@ class _ManageSalesmenScreenState extends State<ManageSalesmenScreen> {
     );
   }
 
+  String _getRoleDisplayName() {
+    switch (widget.userRole) {
+      case 'salesman':
+        return 'Salesman';
+      case 'manager':
+        return 'Manager';
+      default:
+        return 'User';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Manage Salesmen'),
+        title: Text('Manage ${_getRoleDisplayName()}s'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadSalesmen,
+            onPressed: _loadUsers,
           ),
         ],
       ),
       body: _loading
           ? const LoadingIndicator()
-          : _salesmen.isEmpty
-          ? const EmptyStateWidget(message: 'No salesmen found')
+          : _users.isEmpty
+          ? EmptyStateWidget(message: 'No ${_getRoleDisplayName().toLowerCase()}s found')
           : ListView.builder(
-        itemCount: _salesmen.length,
+        itemCount: _users.length,
         itemBuilder: (context, index) {
-          final salesman = _salesmen[index];
-          final data = salesman.data() as Map<String, dynamic>;
+          final user = _users[index];
+          final data = user.data() as Map<String, dynamic>;
           final isActive = data['isActive'] ?? true;
 
           return Card(
@@ -145,21 +170,18 @@ class _ManageSalesmenScreenState extends State<ManageSalesmenScreen> {
               padding: const EdgeInsets.all(8.0),
               child: Row(
                 children: [
-                  // Leading Icon
                   Icon(
-                    Icons.person,
+                    widget.userRole == 'admin' ? Icons.admin_panel_settings : Icons.person,
                     color: isActive ? Colors.blue : Colors.grey,
                     size: 40,
                   ),
                   const SizedBox(width: 12),
-
-                  // Content
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          data['name'] ?? 'Unknown Salesman',
+                          data['name'] ?? 'Unknown User',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -174,39 +196,41 @@ class _ManageSalesmenScreenState extends State<ManageSalesmenScreen> {
                           'Mobile: ${data['mobileNumber'] ?? 'No mobile'}',
                           style: const TextStyle(fontSize: 12),
                         ),
-                        Text(
-                          'Region: ${data['region'] ?? 'Not assigned'}',
-                          style: const TextStyle(fontSize: 12),
-                        ),
+                        if (widget.userRole == 'salesman')
+                          Text(
+                            'Region: ${data['region'] ?? 'Not assigned'}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
                         const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[50],
-                                borderRadius: BorderRadius.circular(12),
+                        if (widget.userRole == 'salesman')
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Total: ${data['totalEnquiries'] ?? 0}',
+                                  style: const TextStyle(fontSize: 10),
+                                ),
                               ),
-                              child: Text(
-                                'Total: ${data['totalEnquiries'] ?? 0}',
-                                style: const TextStyle(fontSize: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Completed: ${data['completedEnquiries'] ?? 0}',
+                                  style: const TextStyle(fontSize: 10),
+                                ),
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.green[50],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                'Completed: ${data['completedEnquiries'] ?? 0}',
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
                         if (!isActive)
                           Text(
                             'Inactive',
@@ -215,23 +239,21 @@ class _ManageSalesmenScreenState extends State<ManageSalesmenScreen> {
                       ],
                     ),
                   ),
-
-                  // Actions - Using PopupMenuButton to avoid overflow
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 20),
                     onSelected: (value) {
                       switch (value) {
                         case 'stats':
-                          _showSalesmanStats(salesman);
+                          _showUserStats(user);
                           break;
                         case 'edit':
-                          _editSalesman(salesman.id, data);
+                          _editUser(user.id, data);
                           break;
                         case 'delete':
-                          _deleteSalesman(salesman.id, data['name']);
+                          _deleteUser(user.id, data['name']);
                           break;
                         case 'reactivate':
-                          _reactivateSalesman(salesman.id);
+                          _reactivateUser(user.id);
                           break;
                       }
                     },
@@ -300,15 +322,17 @@ class _ManageSalesmenScreenState extends State<ManageSalesmenScreen> {
     );
   }
 
-  void _editSalesman(String salesmanId, Map<String, dynamic> data) {
+  void _editUser(String userId, Map<String, dynamic> data) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EditSalesmanScreen(salesmanId: salesmanId),
+        builder: (context) => EditUserScreen(
+          userId: userId,
+          organizationId: widget.organizationId,
+        ),
       ),
     ).then((_) {
-      // Refresh the list after returning from edit screen
-      _loadSalesmen();
+      _loadUsers();
     });
   }
 }

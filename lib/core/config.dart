@@ -1,31 +1,26 @@
+// core/config.dart
 class AppConfig {
-  // Firestore Collections - SEPARATED
-  static const String adminCollection = 'admins';
-  static const String salesmenCollection = 'salesmen';
+
+  // App Name
+  static const String appName = 'Lead Assist';
+
+  // Updated collection names
+  static const String usersCollection = 'platform_users';
   static const String customersCollection = 'customers';
   static const String enquiriesCollection = 'enquiries';
   static const String updatesCollection = 'updates';
+  static const String organizationsCollection = 'organizations';
 
-  // App Constants
-  static const String appName = 'Lead Assist';
-  static const String adminRole = 'admin';
+  // User roles
+  static const String ownerRole = 'owner';
+  static const String managerRole = 'manager';
   static const String salesmanRole = 'salesman';
 
-  // Enquiry Status
+  // Enquiry status
   static const String pendingStatus = 'pending';
-  static const String inProgressStatus = 'in_progress';
   static const String completedStatus = 'completed';
   static const String cancelledStatus = 'cancelled';
 
-  // Regions List
-  static const List<String> regions = [
-    'North Region',
-    'South Region',
-    'East Region',
-    'West Region',
-    'Central Region',
-    'Metro Region',
-    'Rural Region',
-    'International',
-  ];
+  // Regions
+  static const List<String> regions = ['Kolhapur', 'Sangli'];
 }

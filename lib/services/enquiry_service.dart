@@ -1,14 +1,19 @@
+// services/enquiry_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/config.dart';
 import 'customer_service.dart';
 
 class EnquiryService {
-  static final CollectionReference _enquiries =
-  FirebaseFirestore.instance.collection(AppConfig.enquiriesCollection);
+  static CollectionReference _getEnquiriesCollection(String organizationId) {
+    return FirebaseFirestore.instance
+        .collection('organizations')
+        .doc(organizationId)
+        .collection('enquiries');
+  }
 
-  static Future<String> addEnquiry(Map<String, dynamic> enquiryData) async {
+  static Future<String> addEnquiry(String organizationId, Map<String, dynamic> enquiryData) async {
     try {
-      final docRef = await _enquiries.add({
+      final docRef = await _getEnquiriesCollection(organizationId).add({
         ...enquiryData,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -20,9 +25,9 @@ class EnquiryService {
     }
   }
 
-  static Future<void> updateEnquiryStatus(String enquiryId, String status) async {
+  static Future<void> updateEnquiryStatus(String organizationId, String enquiryId, String status) async {
     try {
-      await _enquiries.doc(enquiryId).update({
+      await _getEnquiriesCollection(organizationId).doc(enquiryId).update({
         'status': status,
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -31,31 +36,32 @@ class EnquiryService {
     }
   }
 
-  static Stream<QuerySnapshot> getEnquiriesForSalesman(String salesmanId) {
-    return _enquiries
+  static Stream<QuerySnapshot> getEnquiriesForSalesman(String organizationId, String salesmanId) {
+    return _getEnquiriesCollection(organizationId)
         .where('assignedSalesmanId', isEqualTo: salesmanId)
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
-  static Stream<QuerySnapshot> getAllEnquiries() {
-    return _enquiries
+  static Stream<QuerySnapshot> getAllEnquiries(String organizationId) {
+    return _getEnquiriesCollection(organizationId)
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
-  static Future<DocumentSnapshot> getEnquiryById(String enquiryId) async {
-    return await _enquiries.doc(enquiryId).get();
+  static Future<DocumentSnapshot> getEnquiryById(String organizationId, String enquiryId) async {
+    return await _getEnquiriesCollection(organizationId).doc(enquiryId).get();
   }
 
   static Future<void> addUpdateToEnquiry({
+    required String organizationId,
     required String enquiryId,
     required String updateText,
     required String updatedBy,
     required String updatedByName,
   }) async {
     try {
-      await _enquiries.doc(enquiryId).collection('updates').add({
+      await _getEnquiriesCollection(organizationId).doc(enquiryId).collection('updates').add({
         'text': updateText,
         'updatedBy': updatedBy,
         'updatedByName': updatedByName,
@@ -63,7 +69,7 @@ class EnquiryService {
       });
 
       // Also update the main enquiry timestamp
-      await _enquiries.doc(enquiryId).update({
+      await _getEnquiriesCollection(organizationId).doc(enquiryId).update({
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -71,17 +77,16 @@ class EnquiryService {
     }
   }
 
-  static Stream<QuerySnapshot> getEnquiryUpdates(String enquiryId) {
-    return _enquiries
+  static Stream<QuerySnapshot> getEnquiryUpdates(String organizationId, String enquiryId) {
+    return _getEnquiriesCollection(organizationId)
         .doc(enquiryId)
         .collection('updates')
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
-  // Add these methods to your existing enquiry_service.dart
-
   static Future<String> addEnquiryWithCustomer({
+    required String organizationId,
     required String customerId,
     required String customerName,
     required String customerMobile,
@@ -91,7 +96,7 @@ class EnquiryService {
     required String assignedSalesmanName,
   }) async {
     try {
-      final docRef = await _enquiries.add({
+      final docRef = await _getEnquiriesCollection(organizationId).add({
         'customerId': customerId,
         'customerName': customerName,
         'customerMobile': customerMobile,
@@ -105,7 +110,7 @@ class EnquiryService {
       });
 
       // Update customer enquiry count
-      await CustomerService.updateCustomerEnquiryCount(customerId, increment: true);
+      await CustomerService.updateCustomerEnquiryCount(organizationId, customerId, increment: true);
 
       return docRef.id;
     } catch (e) {
@@ -113,19 +118,19 @@ class EnquiryService {
     }
   }
 
-// Get enquiries by customer
-  static Stream<QuerySnapshot> getEnquiriesByCustomer(String customerId) {
-    return _enquiries
+  // Get enquiries by customer
+  static Stream<QuerySnapshot> getEnquiriesByCustomer(String organizationId, String customerId) {
+    return _getEnquiriesCollection(organizationId)
         .where('customerId', isEqualTo: customerId)
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
   // Add this method to handle enquiry deletion and cleanup
-  static Future<void> deleteEnquiry(String enquiryId, String customerId) async {
+  static Future<void> deleteEnquiry(String organizationId, String enquiryId, String customerId) async {
     try {
       // First delete all updates in the subcollection
-      final updatesSnapshot = await _enquiries
+      final updatesSnapshot = await _getEnquiriesCollection(organizationId)
           .doc(enquiryId)
           .collection('updates')
           .get();
@@ -136,17 +141,17 @@ class EnquiryService {
       }
 
       // Then delete the main enquiry document
-      await _enquiries.doc(enquiryId).delete();
+      await _getEnquiriesCollection(organizationId).doc(enquiryId).delete();
 
       // Update customer enquiry count
-      await CustomerService.updateCustomerEnquiryCount(customerId, increment: false);
+      await CustomerService.updateCustomerEnquiryCount(organizationId, customerId, increment: false);
     } catch (e) {
       throw 'Failed to delete enquiry: $e';
     }
   }
 
-  static Stream<QuerySnapshot> getEnquiriesByStatuses(List<String> statuses) {
-    final collection = _enquiries.orderBy('createdAt', descending: true);
+  static Stream<QuerySnapshot> getEnquiriesByStatuses(String organizationId, List<String> statuses) {
+    final collection = _getEnquiriesCollection(organizationId).orderBy('createdAt', descending: true);
 
     if (statuses.isEmpty || statuses.contains('all')) {
       return collection.snapshots();
@@ -156,11 +161,12 @@ class EnquiryService {
   }
 
   static Stream<QuerySnapshot> searchEnquiries({
+    required String organizationId,
     required String searchType,
     required String query,
     required List<String> statuses,
   }) {
-    final collection = _enquiries.orderBy('createdAt', descending: true);
+    final collection = _getEnquiriesCollection(organizationId).orderBy('createdAt', descending: true);
 
     // If no query, show based on status only
     if (query.trim().isEmpty) {
@@ -187,11 +193,10 @@ class EnquiryService {
     }
 
     // Firestore doesn't support "contains" search easily;
-    // So we’ll simulate simple prefix search using startAt/endAt
+    // So we'll simulate simple prefix search using startAt/endAt
     return baseQuery
         .where(field, isGreaterThanOrEqualTo: query)
         .where(field, isLessThanOrEqualTo: '$query\uf8ff')
         .snapshots();
   }
-
 }
