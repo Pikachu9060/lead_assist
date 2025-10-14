@@ -1,4 +1,3 @@
-// screens/salesman_dashboard.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -26,7 +25,6 @@ class SalesmanDashboard extends StatefulWidget {
 
 class _SalesmanDashboardState extends State<SalesmanDashboard> {
   final List<String> _selectedStatuses = ['all'];
-  final List<String> _allStatuses = ['all', 'pending', 'in_progress', 'completed', 'cancelled'];
   bool _showFilters = true;
 
   Future<String?> _loadOrganizationName() async {
@@ -515,8 +513,8 @@ class _EnquiriesList extends StatefulWidget {
     required this.salesmanId,
     required this.organizationId,
     required this.selectedStatuses,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   State<_EnquiriesList> createState() => __EnquiriesListState();

@@ -289,8 +289,8 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
                     ? const CircularProgressIndicator()
                     : ElevatedButton(
                   style: ButtonStyle(
-                    backgroundColor: MaterialStateProperty.all<Color>(Colors.purple),
-                    foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
+                    backgroundColor: WidgetStateProperty.all<Color>(Colors.purple),
+                    foregroundColor: WidgetStateProperty.all<Color>(Colors.white),
                   ),
                   onPressed: _searchCustomer,
                   child: const Text('Search'),

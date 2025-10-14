@@ -48,6 +48,7 @@ class UserRoleWrapper extends StatefulWidget {
 
 class _UserRoleWrapperState extends State<UserRoleWrapper> {
   String? _userRole;
+  bool isActive = false;
   String? _organizationId;
   bool _loading = true;
 
@@ -64,6 +65,7 @@ class _UserRoleWrapperState extends State<UserRoleWrapper> {
 
       if (userData != null) {
         setState(() {
+          isActive = userData["isActive"] ?? false;
           _userRole = userData['role'];
           _organizationId = userData['organizationId'];
           _loading = false;

@@ -88,7 +88,7 @@ class CustomerService {
   static Stream<QuerySnapshot> searchCustomers(String organizationId, String query) {
     return _getCustomersCollection(organizationId)
         .where('name', isGreaterThanOrEqualTo: query)
-        .where('name', isLessThan: query + 'z')
+        .where('name', isLessThan: '${query}z')
         .snapshots();
   }
 
