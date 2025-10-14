@@ -30,7 +30,7 @@ class LeadAssistApp extends StatelessWidget {
     return MaterialApp(
       title: AppConfig.appName,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primarySwatch: Colors.purple,
         useMaterial3: true,
         inputDecorationTheme: const InputDecorationTheme(
           border: OutlineInputBorder(),

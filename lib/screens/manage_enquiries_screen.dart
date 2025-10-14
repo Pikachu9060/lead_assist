@@ -10,8 +10,9 @@ import 'enquiry_detail_screen.dart';
 
 class ManageEnquiriesScreen extends StatefulWidget {
   final String organizationId;
+  final String? salesmanId;
 
-  const ManageEnquiriesScreen({super.key, required this.organizationId});
+  const ManageEnquiriesScreen({super.key, required this.organizationId, this.salesmanId});
 
   @override
   State<ManageEnquiriesScreen> createState() => _ManageEnquiriesScreenState();
@@ -45,6 +46,7 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
           if (_showFilters) _buildFilterSection(),
           Expanded(
             child: _EnquiriesList(
+              salesmanId: widget.salesmanId,
               key: ValueKey('enquiries_${_selectedStatuses.join('_')}_$_searchType$_searchQuery'),
               selectedStatuses: _selectedStatuses.contains('all')
                   ? ['pending', 'in_progress', 'completed', 'cancelled']
@@ -86,9 +88,9 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
                 const SizedBox(width: 8),
                 DropdownButton<String>(
                   value: _searchType,
-                  items: const [
+                  items: [
                     DropdownMenuItem(value: 'customer', child: Text('Customer')),
-                    DropdownMenuItem(value: 'salesman', child: Text('Salesman')),
+                    if(widget.salesmanId != null)DropdownMenuItem(value: 'salesman', child: Text('Salesman')),
                     DropdownMenuItem(value: 'enquiry', child: Text('Product')),
                   ],
                   onChanged: (value) {
@@ -208,14 +210,16 @@ class _EnquiriesList extends StatefulWidget {
   final String searchType;
   final String searchQuery;
   final String organizationId;
+  final String? salesmanId;
 
   const _EnquiriesList({
     required this.selectedStatuses,
     required this.searchType,
     required this.searchQuery,
     required this.organizationId,
-    Key? key,
-  }) : super(key: key);
+    this.salesmanId,
+    super.key,
+  });
 
   @override
   State<_EnquiriesList> createState() => __EnquiriesListState();
@@ -228,6 +232,7 @@ class __EnquiriesListState extends State<_EnquiriesList> {
   void initState() {
     super.initState();
     _enquiriesStream = EnquiryService.searchEnquiries(
+      salesmanId: widget.salesmanId,
       searchType: widget.searchType,
       query: widget.searchQuery,
       statuses: widget.selectedStatuses,
@@ -238,11 +243,11 @@ class __EnquiriesListState extends State<_EnquiriesList> {
   @override
   void didUpdateWidget(_EnquiriesList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Only update the stream if the filter parameters actually changed
     if (oldWidget.selectedStatuses.join() != widget.selectedStatuses.join() ||
         oldWidget.searchType != widget.searchType ||
         oldWidget.searchQuery != widget.searchQuery) {
       _enquiriesStream = EnquiryService.searchEnquiries(
+        salesmanId: widget.salesmanId,
         searchType: widget.searchType,
         query: widget.searchQuery,
         statuses: widget.selectedStatuses,
@@ -277,14 +282,68 @@ class __EnquiriesListState extends State<_EnquiriesList> {
             final enquiry = enquiries[index];
             final data = enquiry.data() as Map<String, dynamic>;
 
-            return _EnquiryCard(
-              enquiryId: enquiry.id,
-              data: data,
-              onTap: () => _navigateToEnquiryDetail(context, enquiry.id, data, widget.organizationId),
+            return FutureBuilder<DocumentSnapshot>(
+              future: CustomerService.getCustomerById(widget.organizationId, data["customerId"]),
+              builder: (context, customerSnapshot) {
+                if (customerSnapshot.connectionState == ConnectionState.waiting) {
+                  return _buildEnquiryCardWithLoading(data, enquiry.id);
+                }
+
+                if (customerSnapshot.hasError || !customerSnapshot.hasData) {
+                  return _buildEnquiryCard(data, enquiry.id, null);
+                }
+
+                final customerData = customerSnapshot.data!.data() as Map<String, dynamic>?;
+                return _buildEnquiryCard(data, enquiry.id, customerData);
+              },
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildEnquiryCardWithLoading(Map<String, dynamic> data, String enquiryId) {
+    return Opacity(
+      opacity: 0.7,
+      child: Card(
+        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: ListTile(
+          leading: _buildStatusIcon(data['status']),
+          title: Text(
+            data['customerName'] ?? 'Loading...',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Product: ${data['product'] ?? 'Not specified'}'),
+              const LinearProgressIndicator(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEnquiryCard(Map<String, dynamic> data, String enquiryId, Map<String, dynamic>? customerData) {
+    // Use customer data if available, otherwise fall back to enquiry data
+    final String customerName = customerData?['name'] ??
+        customerData?['customerName'] ??
+        data['customerName'] ??
+        'Unknown Customer';
+
+    return _EnquiryCard(
+      enquiryId: enquiryId,
+      data: data,
+      customerName: customerName, // Pass the resolved customer name
+      onTap: () => _navigateToEnquiryDetail(
+          context,
+          enquiryId,
+          data,
+          widget.organizationId,
+          customerData
+      ),
     );
   }
 
@@ -293,18 +352,61 @@ class __EnquiriesListState extends State<_EnquiriesList> {
       String enquiryId,
       Map<String, dynamic> data,
       String organizationId,
-      ) async{
-    final userData = await CustomerService.getCustomerById(widget.organizationId, data["customerId"]);
+      Map<String, dynamic>? customerData,
+      ) async {
+    // If we don't have customer data, fetch it
+    Map<String, dynamic>? userData = customerData;
+    if (userData == null) {
+      final customerSnapshot = await CustomerService.getCustomerById(organizationId, data["customerId"]);
+      userData = customerSnapshot.data() as Map<String, dynamic>?;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EnquiryDetailScreen(
-          userData: userData.data() as Map<String, dynamic>,
+          userData: userData ?? {}, // Provide empty map as fallback
           enquiryId: enquiryId,
           enquiryData: data,
           organizationId: organizationId,
           isSalesman: false,
         ),
+      ),
+    );
+  }
+
+  // Move the status icon method here since it's used in the loading state
+  Widget _buildStatusIcon(String status) {
+    IconData icon;
+    Color color;
+
+    switch (status) {
+      case 'completed':
+        icon = Icons.check_circle;
+        color = Colors.green;
+        break;
+      case 'in_progress':
+        icon = Icons.refresh;
+        color = Colors.orange;
+        break;
+      case 'cancelled':
+        icon = Icons.cancel;
+        color = Colors.red;
+        break;
+      default:
+        icon = Icons.pending;
+        color = Colors.blue;
+    }
+
+    return Tooltip(
+      message: status.replaceAll('_', ' ').toUpperCase(),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: color, size: 20),
       ),
     );
   }
@@ -314,11 +416,13 @@ class __EnquiriesListState extends State<_EnquiriesList> {
 class _EnquiryCard extends StatelessWidget {
   final String enquiryId;
   final Map<String, dynamic> data;
+  final String customerName; // Add this parameter
   final VoidCallback onTap;
 
   const _EnquiryCard({
     required this.enquiryId,
     required this.data,
+    required this.customerName, // Required parameter
     required this.onTap,
   });
 
@@ -329,7 +433,7 @@ class _EnquiryCard extends StatelessWidget {
       child: ListTile(
         leading: _buildStatusIcon(data['status']),
         title: Text(
-          data['customerName'] ?? 'Unknown Customer',
+          customerName, // Use the resolved customer name
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         subtitle: Column(
