@@ -23,7 +23,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _customerNameController = TextEditingController();
   final TextEditingController _customerMobileController =
-  TextEditingController();
+      TextEditingController();
   final TextEditingController _productController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
@@ -144,17 +144,15 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
 
     try {
       final selectedUser = _salesmen.firstWhere(
-            (doc) => doc.id == _selectedUserId,
+        (doc) => doc.id == _selectedUserId,
       );
 
       await EnquiryService.addEnquiryWithCustomer(
         customerId: _customerId!,
-        customerName: _customerNameController.text.trim(),
         customerMobile: _customerMobileController.text.trim(),
         product: _productController.text.trim(),
         description: _descriptionController.text.trim(),
         assignedSalesmanId: _selectedUserId!,
-        assignedSalesmanName: selectedUser['name'],
         organizationId: widget.organizationId,
       );
 
@@ -231,7 +229,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
               controller: _productController,
               label: 'Product *',
               validator: (value) =>
-              value?.isEmpty ?? true ? 'Please enter product' : null,
+                  value?.isEmpty ?? true ? 'Please enter product' : null,
             ),
             const SizedBox(height: 16),
             CustomTextField(
@@ -239,7 +237,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
               label: 'Description *',
               maxLines: 4,
               validator: (value) =>
-              value?.isEmpty ?? true ? 'Please enter description' : null,
+                  value?.isEmpty ?? true ? 'Please enter description' : null,
             ),
             const SizedBox(height: 16),
             _buildSalesmanDropdown(),
@@ -286,13 +284,17 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
                 _searchingCustomer
                     ? const CircularProgressIndicator()
                     : ElevatedButton(
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.all<Color>(Colors.purple),
-                    foregroundColor: WidgetStateProperty.all<Color>(Colors.white),
-                  ),
-                  onPressed: _searchCustomer,
-                  child: const Text('Search'),
-                ),
+                        style: ButtonStyle(
+                          backgroundColor: WidgetStateProperty.all<Color>(
+                            Colors.purple,
+                          ),
+                          foregroundColor: WidgetStateProperty.all<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                        onPressed: _searchCustomer,
+                        child: const Text('Search'),
+                      ),
               ],
             ),
             if (_customerFound)
@@ -340,7 +342,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
               label: 'Customer Name *',
               icon: Icons.person,
               validator: (value) =>
-              value?.isEmpty ?? true ? 'Please enter customer name' : null,
+                  value?.isEmpty ?? true ? 'Please enter customer name' : null,
             ),
             const SizedBox(height: 8),
             Text(
@@ -366,10 +368,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
           value: user.id,
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.black,
-              ),
+              style: const TextStyle(fontSize: 14, color: Colors.black),
               children: [
                 TextSpan(
                   text: user['name'],

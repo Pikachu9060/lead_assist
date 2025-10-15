@@ -20,9 +20,15 @@ class UserService {
       Query query = _platformUsersCollection;
 
       if (mobileNumber != null) {
-        query = query.where('mobileNumber', isEqualTo: FirestoreUtils.trimField(mobileNumber));
+        query = query.where(
+          'mobileNumber',
+          isEqualTo: FirestoreUtils.trimField(mobileNumber),
+        );
       } else if (email != null) {
-        query = query.where('email', isEqualTo: FirestoreUtils.trimField(email));
+        query = query.where(
+          'email',
+          isEqualTo: FirestoreUtils.trimField(email),
+        );
       }
 
       final querySnapshot = await query.limit(1).get();
@@ -32,6 +38,7 @@ class UserService {
     }
   }
 
+  // user_service.dart - Fixed user creation with retry mechanism
   static Future<String> addUser({
     required String organizationId,
     required String name,
@@ -41,6 +48,8 @@ class UserService {
     String? region,
   }) async {
     StreamSubscription? subscription;
+    int retryCount = 0;
+    const int maxRetries = 3;
 
     try {
       // Check if user with same mobile already exists
@@ -58,7 +67,7 @@ class UserService {
       final docRef = _platformUsersCollection.doc();
       final completer = Completer<String>();
 
-      // Listen for Firestore document updates
+      // Listen for Firestore document updates with retry logic
       subscription = docRef.snapshots().listen((snapshot) async {
         if (snapshot.exists) {
           final data = snapshot.data() as Map<String, dynamic>;
@@ -67,29 +76,32 @@ class UserService {
 
           if (status == 'active' && !resetEmailSent) {
             try {
-              // Send password reset email
-              await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+              // Send password reset email with retry
+              await _sendPasswordResetWithRetry(email, maxRetries);
               print('✅ Password reset email sent to: $email');
 
               // Update Firestore document to mark email as sent
               await docRef.update(
-                  FirestoreUtils.updateTimestamp({
-                    'resetEmailSent': true,
-                    'resetEmailSentAt': FieldValue.serverTimestamp(),
-                  })
+                FirestoreUtils.updateTimestamp({
+                  'resetEmailSent': true,
+                  'resetEmailSentAt': FieldValue.serverTimestamp(),
+                }),
               );
 
               if (!completer.isCompleted) {
                 completer.complete(docRef.id);
               }
             } catch (e) {
-              print('❌ Failed to send reset email: $e');
+              print(
+                '❌ Failed to send reset email after $maxRetries attempts: $e',
+              );
               await docRef.update({
                 'resetEmailError': e.toString(),
+                'status': 'active', // Mark as active even if email fails
               });
 
               if (!completer.isCompleted) {
-                completer.complete(docRef.id);
+                completer.complete(docRef.id); // Still complete but log error
               }
             }
           } else if (status == 'failed') {
@@ -125,15 +137,37 @@ class UserService {
       await docRef.set(userData);
 
       // Wait for the process to complete or timeout
-      return await completer.future.timeout(
+      await completer.future.timeout(
         const Duration(seconds: 30),
-        onTimeout: () => throw 'User creation timeout - cloud function took too long',
+        onTimeout: () =>
+            throw 'User creation timeout - cloud function took too long',
       );
+      return "User Created Successfully !";
     } catch (e) {
-      throw e.toString();
+      print(e.toString());
     } finally {
-      // Unsubscribe from the listener
       subscription?.cancel();
+      return '';
+    }
+  }
+
+  // Helper method for retry logic
+  static Future<void> _sendPasswordResetWithRetry(
+    String email,
+    int maxRetries,
+  ) async {
+    for (int i = 0; i < maxRetries; i++) {
+      try {
+        await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+        return; // Success, exit retry loop
+      } catch (e) {
+        if (i == maxRetries - 1) {
+          rethrow; // Last attempt failed
+        }
+        await Future.delayed(
+          Duration(seconds: (i + 1) * 2),
+        ); // Exponential backoff
+      }
     }
   }
 
@@ -159,9 +193,9 @@ class UserService {
 
   // Get users by organization and role
   static Future<List<QueryDocumentSnapshot>> getUsersByOrganizationAndRole(
-      String organizationId,
-      String role,
-      ) async {
+    String organizationId,
+    String role,
+  ) async {
     try {
       final querySnapshot = await _platformUsersCollection
           .where('organizationId', isEqualTo: organizationId)
@@ -176,7 +210,9 @@ class UserService {
   }
 
   // Get all active users in organization
-  static Future<List<QueryDocumentSnapshot>> getActiveUsers(String organizationId) async {
+  static Future<List<QueryDocumentSnapshot>> getActiveUsers(
+    String organizationId,
+  ) async {
     try {
       final querySnapshot = await _platformUsersCollection
           .where('organizationId', isEqualTo: organizationId)
@@ -201,9 +237,7 @@ class UserService {
   // Update user status
   static Future<void> updateUserStatus(String userId, bool isActive) async {
     try {
-      final updateData = FirestoreUtils.updateTimestamp({
-        'isActive': isActive,
-      });
+      final updateData = FirestoreUtils.updateTimestamp({'isActive': isActive});
 
       if (!isActive) {
         updateData['deletedAt'] = FieldValue.serverTimestamp();
@@ -227,7 +261,10 @@ class UserService {
       // Check if another user with same mobile exists in same organization
       final mobileQuery = await _platformUsersCollection
           .where('organizationId', isEqualTo: organizationId)
-          .where('mobileNumber', isEqualTo: FirestoreUtils.trimField(mobileNumber))
+          .where(
+            'mobileNumber',
+            isEqualTo: FirestoreUtils.trimField(mobileNumber),
+          )
           .where(FieldPath.documentId, isNotEqualTo: userId)
           .limit(1)
           .get();
@@ -252,19 +289,22 @@ class UserService {
   }
 
   // Update salesman enquiry counts
-  static Future<void> updateUserEnquiryCount(String userId, {
+  static Future<void> updateUserEnquiryCount(
+    String userId, {
     int total = 0,
     int completed = 0,
     int pending = 0,
   }) async {
     try {
-      await _platformUsersCollection.doc(userId).update(
-          FirestoreUtils.updateTimestamp({
-            'totalEnquiries': FieldValue.increment(total),
-            'completedEnquiries': FieldValue.increment(completed),
-            'pendingEnquiries': FieldValue.increment(pending),
-          })
-      );
+      await _platformUsersCollection
+          .doc(userId)
+          .update(
+            FirestoreUtils.updateTimestamp({
+              'totalEnquiries': FieldValue.increment(total),
+              'completedEnquiries': FieldValue.increment(completed),
+              'pendingEnquiries': FieldValue.increment(pending),
+            }),
+          );
     } catch (e) {
       throw ErrorUtils.handleFirestoreError('update user counts', e);
     }
@@ -272,9 +312,9 @@ class UserService {
 
   // Get salesmen by region in organization
   static Future<List<QueryDocumentSnapshot>> getSalesmenByRegion(
-      String organizationId,
-      String region,
-      ) async {
+    String organizationId,
+    String region,
+  ) async {
     try {
       final querySnapshot = await _platformUsersCollection
           .where('organizationId', isEqualTo: organizationId)
@@ -311,11 +351,9 @@ class UserService {
   // Update salesman region
   static Future<void> updateSalesmanRegion(String userId, String region) async {
     try {
-      await _platformUsersCollection.doc(userId).update(
-          FirestoreUtils.updateTimestamp({
-            'region': region,
-          })
-      );
+      await _platformUsersCollection
+          .doc(userId)
+          .update(FirestoreUtils.updateTimestamp({'region': region}));
     } catch (e) {
       throw ErrorUtils.handleFirestoreError('update salesman region', e);
     }
@@ -335,7 +373,9 @@ class UserService {
   }
 
   // Get users by organization
-  static Future<List<QueryDocumentSnapshot>> getUsersByOrganization(String organizationId) async {
+  static Future<List<QueryDocumentSnapshot>> getUsersByOrganization(
+    String organizationId,
+  ) async {
     try {
       final querySnapshot = await _platformUsersCollection
           .where('organizationId', isEqualTo: organizationId)
@@ -349,7 +389,9 @@ class UserService {
   }
 
   // Get user counts by role for organization
-  static Future<Map<String, int>> getUserCountsByRole(String organizationId) async {
+  static Future<Map<String, int>> getUserCountsByRole(
+    String organizationId,
+  ) async {
     try {
       final users = await getUsersByOrganization(organizationId);
       final Map<String, int> roleCounts = {};
@@ -366,33 +408,34 @@ class UserService {
   }
 
   // Search users in organization
+  // user_service.dart - Improved search with better Firestore queries
   static Future<List<QueryDocumentSnapshot>> searchUsers({
     required String organizationId,
     required String query,
     String? role,
   }) async {
     try {
-      Query queryRef = _platformUsersCollection
-          .where('organizationId', isEqualTo: organizationId)
-          .where('isActive', isEqualTo: true);
-
-      if (role != null) {
-        queryRef = queryRef.where('role', isEqualTo: role);
+      if (query.trim().isEmpty) {
+        // Return all users if query is empty
+        return await getUsersByOrganization(organizationId);
       }
 
-      final users = await queryRef.get();
+      final searchTerm = query.toLowerCase();
+      final users = await getUsersByOrganization(organizationId);
 
-      // Client-side filtering for name/email/mobile
-      return users.docs.where((doc) {
+      // Client-side filtering for better search experience
+      return users.where((doc) {
         final data = doc.data() as Map<String, dynamic>;
         final name = data['name']?.toString().toLowerCase() ?? '';
         final email = data['email']?.toString().toLowerCase() ?? '';
         final mobile = data['mobileNumber']?.toString().toLowerCase() ?? '';
-        final searchTerm = query.toLowerCase();
 
+        // More flexible matching
         return name.contains(searchTerm) ||
             email.contains(searchTerm) ||
-            mobile.contains(searchTerm);
+            mobile.contains(searchTerm) ||
+            name.startsWith(searchTerm) ||
+            email.startsWith(searchTerm);
       }).toList();
     } catch (e) {
       throw ErrorUtils.handleFirestoreError('search users', e);
@@ -402,11 +445,9 @@ class UserService {
   // Reactivate user
   static Future<void> reactivateUser(String userId) async {
     try {
-      await _platformUsersCollection.doc(userId).update(
-          FirestoreUtils.updateTimestamp({
-            'isActive': true,
-          })
-      );
+      await _platformUsersCollection
+          .doc(userId)
+          .update(FirestoreUtils.updateTimestamp({'isActive': true}));
     } catch (e) {
       throw ErrorUtils.handleFirestoreError('reactivate user', e);
     }

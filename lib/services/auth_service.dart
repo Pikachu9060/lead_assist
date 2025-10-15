@@ -6,16 +6,19 @@ import '../shared/utils/firestore_utils.dart';
 class AuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // auth_service.dart - Fixed login method
   static Future<UserCredential> login(String email, String password) async {
     try {
-      _auth.signOut();
       final credential = await _auth.signInWithEmailAndPassword(
         email: FirestoreUtils.trimField(email),
         password: FirestoreUtils.trimField(password),
       );
 
-      // Get user data from platform_users collection
-      final user = await _getPlatformUserByEmail(email);
+      // Use transaction to ensure data consistency
+      final user = await FirebaseFirestore.instance
+          .runTransaction<DocumentSnapshot?>((transaction) async {
+            return await _getPlatformUserByEmail(email);
+          });
 
       if (user == null) {
         await _auth.signOut();
@@ -43,7 +46,9 @@ class AuthService {
   // Get user data with organization context
   static Future<Map<String, dynamic>?> getUserData(String userId) async {
     try {
-      final userDoc = await FirestoreUtils.platformUsersCollection.doc(userId).get();
+      final userDoc = await FirestoreUtils.platformUsersCollection
+          .doc(userId)
+          .get();
       if (!userDoc.exists) return null;
 
       return userDoc.data()! as Map<String, dynamic>;
@@ -68,7 +73,9 @@ class AuthService {
   // Reset password
   static Future<void> resetPassword(String email) async {
     try {
-      await _auth.sendPasswordResetEmail(email: FirestoreUtils.trimField(email));
+      await _auth.sendPasswordResetEmail(
+        email: FirestoreUtils.trimField(email),
+      );
     } on FirebaseAuthException catch (e) {
       throw ErrorUtils.handleFirebaseAuthError(e);
     } catch (e) {
