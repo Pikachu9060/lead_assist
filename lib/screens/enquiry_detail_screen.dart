@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import '../services/enquiry_service.dart';
 import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
+import '../shared/utils/date_utils.dart';
+import '../shared/utils/status_utils.dart';
 
 class EnquiryDetailScreen extends StatefulWidget {
   final String enquiryId;
@@ -172,16 +174,16 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
             _buildInfoRow('Description', widget.enquiryData['description']),
             if (!widget.isSalesman)
               _buildInfoRow('Assigned To', widget.enquiryData['assignedSalesmanName']),
-            _buildInfoRow('Status', _formatStatus(widget.enquiryData['status'])),
+            _buildInfoRow('Status', StatusUtils.formatStatus(widget.enquiryData['status'])),
             if (widget.enquiryData['createdAt'] != null)
               _buildInfoRow(
                 'Created',
-                _formatDate(widget.enquiryData['createdAt']),
+                DateUtilHelper.formatDateTime(widget.enquiryData['createdAt']),
               ),
             if (widget.enquiryData['updatedAt'] != null)
               _buildInfoRow(
                 'Last Updated',
-                _formatDate(widget.enquiryData['updatedAt']),
+                DateUtilHelper.formatDateTime(widget.enquiryData['updatedAt']),
               ),
           ],
         ),
@@ -241,9 +243,9 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Current: ${_formatStatus(widget.enquiryData['status'])}',
+              'Current: ${StatusUtils.formatStatus(widget.enquiryData['status'])}',
               style: TextStyle(
-                color: _getStatusColor(widget.enquiryData['status']),
+                color: StatusUtils.getStatusColor(widget.enquiryData['status']),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -420,42 +422,6 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
       ),
     );
   }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'completed':
-        return Colors.green;
-      case 'in_progress':
-        return Colors.orange;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.blue;
-    }
-  }
-
-  String _formatStatus(String status) {
-    switch (status) {
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return 'Pending';
-    }
-  }
-
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown date';
-    try {
-      final date = timestamp.toDate();
-      return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return 'Invalid date';
-    }
-  }
 }
 
 class _TimelineItem extends StatelessWidget {
@@ -535,7 +501,7 @@ class _TimelineItem extends StatelessWidget {
                     ),
                     if (updateData['createdAt'] != null)
                       Text(
-                        _formatDateTime(updateData['createdAt']),
+                        DateUtilHelper.formatDateWithTime(updateData['createdAt']),
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -554,23 +520,5 @@ class _TimelineItem extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  String _formatDateTime(dynamic timestamp) {
-    if (timestamp == null) return '';
-    try {
-      final date = timestamp.toDate();
-      return '${_formatTime(date)} • ${_formatDate(date)}';
-    } catch (e) {
-      return '';
-    }
-  }
-
-  String _formatTime(DateTime date) {
-    return '${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
   }
 }

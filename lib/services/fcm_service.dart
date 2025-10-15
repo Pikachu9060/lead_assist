@@ -2,15 +2,13 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:leadassist/services/notification_channels.dart';
 import 'dart:io';
-import '../core/config.dart';
+import '../shared/utils/firestore_utils.dart';
 
 class FCMService {
   static final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   static final FlutterLocalNotificationsPlugin _localNotifications =
   FlutterLocalNotificationsPlugin();
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
 
   static String? _currentUserId;
@@ -21,10 +19,9 @@ class FCMService {
   static Future<void> initializeForUser(String userId, String userRole) async {
     _currentUserId = userId;
     _currentUserRole = userRole;
-    await NotificationChannels.createDefaultChannel();
     await _requestPermissions();
     await _initializeLocalNotifications();
-    await _getDeviceIdentifier(); // Get real device ID
+    await _getDeviceIdentifier();
     await _configureFCM();
   }
 
@@ -59,7 +56,6 @@ class FCMService {
     print('FCM Token for user $_currentUserId on device $_currentDeviceId: $token');
 
     if (token != null) {
-      // ✅ Clean up previous user's tokens and save new token
       await _cleanupAndSaveToken(token);
     }
 
@@ -80,12 +76,8 @@ class FCMService {
     if (_currentUserId == null || _currentDeviceId == null) return;
 
     try {
-      // Remove this device's token from ALL users (cleanup when switching users)
       await _removeDeviceFromAllUsers();
-
-      // Then save the new token for current user
       await _saveTokenForCurrentUser(newToken);
-
     } catch (e) {
       print('Error in token cleanup/save: $e');
     }
@@ -94,19 +86,17 @@ class FCMService {
   // ✅ REMOVE DEVICE FROM ALL USERS (Cleanup when new user logs in)
   static Future<void> _removeDeviceFromAllUsers() async {
     try {
-      final batch = _firestore.batch();
+      final batch = FirebaseFirestore.instance.batch();
 
       // Remove from all salesman documents
-      final salesmanSnapshot = await _firestore
-          .collection(AppConfig.usersCollection)
+      final salesmanSnapshot = await FirestoreUtils.platformUsersCollection
           .where('fcmTokens.$_currentDeviceId', isNull: false)
           .get();
 
       for (final doc in salesmanSnapshot.docs) {
-        batch.update(doc.reference, {
+        batch.update(doc.reference, FirestoreUtils.updateTimestamp({
           'fcmTokens.$_currentDeviceId': FieldValue.delete(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        }));
       }
 
       await batch.commit();
@@ -116,19 +106,16 @@ class FCMService {
     }
   }
 
-  // In FCM service, replace the token saving logic:
   static Future<void> _saveTokenForCurrentUser(String token) async {
     if (_currentUserId == null || _currentDeviceId == null) return;
 
     try {
-      await _firestore
-          .collection(AppConfig.usersCollection) // Updated collection
+      await FirestoreUtils.platformUsersCollection
           .doc(_currentUserId!)
-          .update({
+          .update(FirestoreUtils.updateTimestamp({
         'fcmTokens.$_currentDeviceId': token,
         'lastLoginAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }));
       print('✅ Saved FCM token for user $_currentUserId');
     } catch (e) {
       print('Error saving FCM token: $e');
@@ -148,7 +135,6 @@ class FCMService {
     if (_currentUserId == null || _currentUserRole == null) return;
 
     try {
-      // Unsubscribe from all first (cleanup)
       await _unsubscribeFromAllTopics();
 
       // Subscribe to relevant topics
@@ -171,13 +157,10 @@ class FCMService {
   // ✅ UNSUBSCRIBE FROM ALL TOPICS (Cleanup)
   static Future<void> _unsubscribeFromAllTopics() async {
     try {
-      // Get all topics and unsubscribe (this is a simplified approach)
-      // In production, you might want to track subscribed topics
       await _firebaseMessaging.unsubscribeFromTopic('all_users');
       await _firebaseMessaging.unsubscribeFromTopic('admins');
       await _firebaseMessaging.unsubscribeFromTopic('salesmen');
 
-      // Unsubscribe from any user-specific topics
       if (_currentUserId != null) {
         await _firebaseMessaging.unsubscribeFromTopic('user_$_currentUserId');
       }
@@ -194,17 +177,12 @@ class FCMService {
     if (_currentUserId == null || _currentDeviceId == null) return;
 
     try {
-
-      // Remove from salesman collection
-      await _firestore
-          .collection(AppConfig.usersCollection)
+      await FirestoreUtils.platformUsersCollection
           .doc(_currentUserId!)
-          .update({
+          .update(FirestoreUtils.updateTimestamp({
         'fcmTokens.$_currentDeviceId': FieldValue.delete(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }));
 
-      // Unsubscribe from topics
       await _unsubscribeFromAllTopics();
 
       print('✅ Removed FCM token for device $_currentDeviceId');
@@ -223,7 +201,6 @@ class FCMService {
     return await _firebaseMessaging.getToken();
   }
 
-  // ... Rest of your existing methods (_requestPermissions, _initializeLocalNotifications, etc.)
   static Future<void> _requestPermissions() async {
     NotificationSettings settings = await _firebaseMessaging.requestPermission(
       alert: true,
@@ -301,7 +278,7 @@ class FCMService {
     );
   }
 
-  static String? _formatDeviceId(String? deviceId){
+  static String? _formatDeviceId(String? deviceId) {
     if (deviceId == null) return null;
     return deviceId.replaceAll('.', '-');
   }

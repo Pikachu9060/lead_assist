@@ -1,38 +1,37 @@
-// services/enquiry_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/config.dart';
+import '../shared/utils/error_utils.dart';
+import '../shared/utils/firestore_utils.dart';
 import 'customer_service.dart';
 
 class EnquiryService {
   static CollectionReference _getEnquiriesCollection(String organizationId) {
-    return FirebaseFirestore.instance
-        .collection('organizations')
-        .doc(organizationId)
-        .collection('enquiries');
+    return FirestoreUtils.getEnquiriesCollection(organizationId);
   }
 
   static Future<String> addEnquiry(String organizationId, Map<String, dynamic> enquiryData) async {
     try {
-      final docRef = await _getEnquiriesCollection(organizationId).add({
+      final dataWithDefaults = FirestoreUtils.addTimestamps({
         ...enquiryData,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
         'status': AppConfig.pendingStatus,
       });
+
+      final docRef = await _getEnquiriesCollection(organizationId).add(dataWithDefaults);
       return docRef.id;
     } catch (e) {
-      throw 'Failed to add enquiry: $e';
+      throw ErrorUtils.handleGenericError('add enquiry', e);
     }
   }
 
   static Future<void> updateEnquiryStatus(String organizationId, String enquiryId, String status) async {
     try {
-      await _getEnquiriesCollection(organizationId).doc(enquiryId).update({
-        'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _getEnquiriesCollection(organizationId).doc(enquiryId).update(
+          FirestoreUtils.updateTimestamp({
+            'status': status,
+          })
+      );
     } catch (e) {
-      throw 'Failed to update enquiry status: $e';
+      throw ErrorUtils.handleGenericError('update enquiry status', e);
     }
   }
 
@@ -44,7 +43,7 @@ class EnquiryService {
   }
 
   static Stream<QuerySnapshot> getAllEnquiries(String organizationId) {
-    return  _getEnquiriesCollection(organizationId)
+    return _getEnquiriesCollection(organizationId)
         .orderBy('createdAt', descending: true)
         .snapshots();
   }
@@ -61,19 +60,20 @@ class EnquiryService {
     required String updatedByName,
   }) async {
     try {
-      await _getEnquiriesCollection(organizationId).doc(enquiryId).collection('updates').add({
-        'text': updateText,
-        'updatedBy': updatedBy,
-        'updatedByName': updatedByName,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await _getEnquiriesCollection(organizationId).doc(enquiryId).collection('updates').add(
+          FirestoreUtils.addTimestamps({
+            'text': updateText,
+            'updatedBy': updatedBy,
+            'updatedByName': updatedByName,
+          }, includeUpdated: false)
+      );
 
       // Also update the main enquiry timestamp
-      await _getEnquiriesCollection(organizationId).doc(enquiryId).update({
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _getEnquiriesCollection(organizationId).doc(enquiryId).update(
+          FirestoreUtils.updateTimestamp({})
+      );
     } catch (e) {
-      throw 'Failed to add update: $e';
+      throw ErrorUtils.handleGenericError('add update', e);
     }
   }
 
@@ -96,23 +96,23 @@ class EnquiryService {
     required String assignedSalesmanName,
   }) async {
     try {
-      final docRef = await _getEnquiriesCollection(organizationId).add({
-        'customerId': customerId,
-        'product': product,
-        'description': description,
-        'assignedSalesmanId': assignedSalesmanId,
-        'assignedSalesmanName': assignedSalesmanName,
-        'status': AppConfig.pendingStatus,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      final docRef = await _getEnquiriesCollection(organizationId).add(
+          FirestoreUtils.addTimestamps({
+            'customerId': customerId,
+            'product': product,
+            'description': description,
+            'assignedSalesmanId': assignedSalesmanId,
+            'assignedSalesmanName': assignedSalesmanName,
+            'status': AppConfig.pendingStatus,
+          })
+      );
 
       // Update customer enquiry count
       await CustomerService.updateCustomerEnquiryCount(organizationId, customerId, increment: true);
 
       return docRef.id;
     } catch (e) {
-      throw 'Failed to add enquiry: $e';
+      throw ErrorUtils.handleGenericError('add enquiry', e);
     }
   }
 
@@ -144,7 +144,7 @@ class EnquiryService {
       // Update customer enquiry count
       await CustomerService.updateCustomerEnquiryCount(organizationId, customerId, increment: false);
     } catch (e) {
-      throw 'Failed to delete enquiry: $e';
+      throw ErrorUtils.handleGenericError('delete enquiry', e);
     }
   }
 
@@ -163,7 +163,7 @@ class EnquiryService {
     required String searchType,
     required String query,
     required List<String> statuses,
-    String? salesmanId, // Make salesmanId optional
+    String? salesmanId,
   }) {
     Query baseQuery = _getEnquiriesCollection(organizationId).orderBy('createdAt', descending: true);
 

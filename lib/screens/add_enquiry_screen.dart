@@ -7,6 +7,7 @@ import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/error_widget.dart';
+import '../shared/widgets/custom_text_field.dart';
 import 'add_customer_screen.dart';
 
 class AddEnquiryScreen extends StatefulWidget {
@@ -22,7 +23,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _customerNameController = TextEditingController();
   final TextEditingController _customerMobileController =
-      TextEditingController();
+  TextEditingController();
   final TextEditingController _productController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
 
@@ -143,7 +144,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
 
     try {
       final selectedUser = _salesmen.firstWhere(
-        (doc) => doc.id == _selectedUserId,
+            (doc) => doc.id == _selectedUserId,
       );
 
       await EnquiryService.addEnquiryWithCustomer(
@@ -226,19 +227,19 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
             if (_customerFound) _buildCustomerDetailsSection(),
 
             const SizedBox(height: 16),
-            _buildTextField(
+            CustomTextField(
               controller: _productController,
               label: 'Product *',
               validator: (value) =>
-                  value?.isEmpty ?? true ? 'Please enter product' : null,
+              value?.isEmpty ?? true ? 'Please enter product' : null,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            CustomTextField(
               controller: _descriptionController,
               label: 'Description *',
               maxLines: 4,
               validator: (value) =>
-                  value?.isEmpty ?? true ? 'Please enter description' : null,
+              value?.isEmpty ?? true ? 'Please enter description' : null,
             ),
             const SizedBox(height: 16),
             _buildSalesmanDropdown(),
@@ -265,13 +266,10 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
+                  child: CustomTextField(
                     controller: _customerMobileController,
-                    decoration: const InputDecoration(
-                      labelText: 'Mobile Number *',
-                      prefixIcon: Icon(Icons.phone),
-                      border: OutlineInputBorder(),
-                    ),
+                    label: 'Mobile Number *',
+                    icon: Icons.phone,
                     keyboardType: TextInputType.phone,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -337,12 +335,12 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            _buildTextField(
+            CustomTextField(
               controller: _customerNameController,
               label: 'Customer Name *',
               icon: Icons.person,
               validator: (value) =>
-                  value?.isEmpty ?? true ? 'Please enter customer name' : null,
+              value?.isEmpty ?? true ? 'Please enter customer name' : null,
             ),
             const SizedBox(height: 8),
             Text(
@@ -352,25 +350,6 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    IconData? icon,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: icon != null ? Icon(icon) : null,
-        border: const OutlineInputBorder(),
-      ),
-      maxLines: maxLines,
-      validator: validator,
     );
   }
 

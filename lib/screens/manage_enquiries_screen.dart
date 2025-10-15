@@ -5,6 +5,8 @@ import 'package:leadassist/services/customer_service.dart';
 import '../services/enquiry_service.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/status_icon.dart';
+import '../shared/utils/date_utils.dart';
 import 'enquiry_detail_screen.dart';
 
 class ManageEnquiriesScreen extends StatefulWidget {
@@ -308,7 +310,7 @@ class __EnquiriesListState extends State<_EnquiriesList> {
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: ListTile(
-          leading: _buildStatusIcon(data['status']),
+          leading: StatusIcon(status: data['status']),
           title: Text(
             data['customerName'] ?? 'Loading...',
             style: const TextStyle(fontWeight: FontWeight.bold),
@@ -373,42 +375,6 @@ class __EnquiriesListState extends State<_EnquiriesList> {
       ),
     );
   }
-
-  // Move the status icon method here since it's used in the loading state
-  Widget _buildStatusIcon(String status) {
-    IconData icon;
-    Color color;
-
-    switch (status) {
-      case 'completed':
-        icon = Icons.check_circle;
-        color = Colors.green;
-        break;
-      case 'in_progress':
-        icon = Icons.refresh;
-        color = Colors.orange;
-        break;
-      case 'cancelled':
-        icon = Icons.cancel;
-        color = Colors.red;
-        break;
-      default:
-        icon = Icons.pending;
-        color = Colors.blue;
-    }
-
-    return Tooltip(
-      message: status.replaceAll('_', ' ').toUpperCase(),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: color, size: 20),
-      ),
-    );
-  }
 }
 
 // _EnquiryCard remains the same...
@@ -430,7 +396,7 @@ class _EnquiryCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ListTile(
-        leading: _buildStatusIcon(data['status']),
+        leading: StatusIcon(status: data['status']),
         title: Text(
           customerName, // Use the resolved customer name
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -446,7 +412,7 @@ class _EnquiryCard extends StatelessWidget {
                 Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600),
                 const SizedBox(width: 4),
                 Text(
-                  _formatDate(data['createdAt']),
+                  DateUtilHelper.formatDate(data['createdAt']),
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ],
@@ -457,55 +423,5 @@ class _EnquiryCard extends StatelessWidget {
         onTap: onTap,
       ),
     );
-  }
-
-  Widget _buildStatusIcon(String status) {
-    IconData icon;
-    Color color;
-    String tooltip;
-
-    switch (status) {
-      case 'completed':
-        icon = Icons.check_circle;
-        color = Colors.green;
-        tooltip = 'Completed';
-        break;
-      case 'in_progress':
-        icon = Icons.refresh;
-        color = Colors.orange;
-        tooltip = 'In Progress';
-        break;
-      case 'cancelled':
-        icon = Icons.cancel;
-        color = Colors.red;
-        tooltip = 'Cancelled';
-        break;
-      default:
-        icon = Icons.pending;
-        color = Colors.blue;
-        tooltip = 'Pending';
-    }
-
-    return Tooltip(
-      message: tooltip,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: color, size: 20),
-      ),
-    );
-  }
-
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown date';
-    try {
-      final date = timestamp.toDate();
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return 'Invalid date';
-    }
   }
 }

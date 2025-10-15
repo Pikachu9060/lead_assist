@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/customer_service.dart';
 import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/custom_text_field.dart';
 
 class AddCustomerScreen extends StatefulWidget {
   final String? initialMobileNumber;
@@ -90,7 +91,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
           key: _formKey,
           child: Column(
             children: [
-              _buildTextField(
+              CustomTextField(
                 controller: _nameController,
                 label: 'Customer Name *',
                 icon: Icons.person,
@@ -99,7 +100,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                     : null,
               ),
               const SizedBox(height: 16),
-              _buildTextField(
+              CustomTextField(
                 controller: _mobileController,
                 label: 'Mobile Number *',
                 icon: Icons.phone,
@@ -115,7 +116,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              _buildTextField(
+              CustomTextField(
                 controller: _addressController,
                 label: 'Address *',
                 icon: Icons.location_on,
@@ -137,27 +138,6 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: const OutlineInputBorder(),
-      ),
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      validator: validator,
     );
   }
 

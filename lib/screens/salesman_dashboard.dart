@@ -8,6 +8,9 @@ import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/error_widget.dart';
+import '../shared/widgets/status_icon.dart';
+import '../shared/utils/date_utils.dart';
+import '../shared/utils/status_utils.dart';
 import 'enquiry_detail_screen.dart';
 import '../core/config.dart';
 
@@ -628,7 +631,7 @@ class _EnquiryCard extends StatelessWidget {
     return Card(
       elevation: 2,
       child: ListTile(
-        leading: _buildStatusIcon(data['status']),
+        leading: StatusIcon(status: data['status']),
         title: Text(
           data['customerName'] ?? 'Unknown Customer',
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -649,25 +652,25 @@ class _EnquiryCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(data['status']).withOpacity(0.1),
+                    color: StatusUtils.getSalesmanStatusColor(data['status']).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: _getStatusColor(data['status']).withOpacity(0.3),
+                      color: StatusUtils.getSalesmanStatusColor(data['status']).withOpacity(0.3),
                     ),
                   ),
                   child: Text(
-                    _formatStatus(data['status']),
+                    StatusUtils.formatStatus(data['status']),
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: _getStatusColor(data['status']),
+                      color: StatusUtils.getSalesmanStatusColor(data['status']),
                     ),
                   ),
                 ),
                 const Spacer(),
                 if (data['createdAt'] != null)
                   Text(
-                    _formatDate(data['createdAt']),
+                    DateUtilHelper.formatDate(data['createdAt']),
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 10,
@@ -685,71 +688,5 @@ class _EnquiryCard extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
     );
-  }
-
-  Widget _buildStatusIcon(String status) {
-    IconData icon;
-    Color color = _getStatusColor(status);
-
-    switch (status) {
-      case 'completed':
-        icon = Icons.check_circle;
-        break;
-      case 'in_progress':
-        icon = Icons.refresh;
-        break;
-      case 'cancelled':
-        icon = Icons.cancel;
-        break;
-      default:
-        icon = Icons.pending;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(icon, color: color, size: 20),
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'completed':
-        return Colors.green;
-      case 'in_progress':
-        return Colors.orange;
-      case 'cancelled':
-        return Colors.red;
-      case 'pending':
-        return Colors.orange;
-      default:
-        return Colors.black;
-    }
-  }
-
-  String _formatStatus(String status) {
-    switch (status) {
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return 'Pending';
-    }
-  }
-
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown date';
-    try {
-      final date = timestamp.toDate();
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return 'Invalid date';
-    }
   }
 }

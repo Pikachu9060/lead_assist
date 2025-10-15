@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../core/config.dart';
+import '../shared/utils/error_utils.dart';
+import '../shared/utils/firestore_utils.dart';
 
 class UserService {
-  static final CollectionReference _platformUsersCollection =
-  FirebaseFirestore.instance.collection('platform_users');
+  // Using FirestoreUtils for collection reference
+  static CollectionReference get _platformUsersCollection =>
+      FirestoreUtils.platformUsersCollection;
 
   // Check if user exists by mobile/email
   static Future<bool> doesUserExist({
@@ -17,15 +20,15 @@ class UserService {
       Query query = _platformUsersCollection;
 
       if (mobileNumber != null) {
-        query = query.where('mobileNumber', isEqualTo: mobileNumber.trim());
+        query = query.where('mobileNumber', isEqualTo: FirestoreUtils.trimField(mobileNumber));
       } else if (email != null) {
-        query = query.where('email', isEqualTo: email.trim());
+        query = query.where('email', isEqualTo: FirestoreUtils.trimField(email));
       }
 
       final querySnapshot = await query.limit(1).get();
       return querySnapshot.docs.isNotEmpty;
     } catch (e) {
-      throw 'Failed to check user: $e';
+      throw ErrorUtils.handleFirestoreError('check user', e);
     }
   }
 
@@ -69,10 +72,12 @@ class UserService {
               print('✅ Password reset email sent to: $email');
 
               // Update Firestore document to mark email as sent
-              await docRef.update({
-                'resetEmailSent': true,
-                'resetEmailSentAt': FieldValue.serverTimestamp(),
-              });
+              await docRef.update(
+                  FirestoreUtils.updateTimestamp({
+                    'resetEmailSent': true,
+                    'resetEmailSentAt': FieldValue.serverTimestamp(),
+                  })
+              );
 
               if (!completer.isCompleted) {
                 completer.complete(docRef.id);
@@ -95,21 +100,19 @@ class UserService {
         }
       });
 
-      // Add user to Firestore
-      Map<String, dynamic> userData = {
+      // Add user to Firestore using FirestoreUtils for timestamps
+      Map<String, dynamic> userData = FirestoreUtils.addTimestamps({
         'organizationId': organizationId,
-        'name': name.trim(),
-        'email': email.trim(),
-        'mobileNumber': mobileNumber.trim(),
+        'name': FirestoreUtils.trimField(name),
+        'email': FirestoreUtils.trimField(email),
+        'mobileNumber': FirestoreUtils.trimField(mobileNumber),
         'role': role,
         'isActive': true,
         'userId': docRef.id,
         'status': 'creating',
-        'resetEmailSent': false, // Initialize as false
+        'resetEmailSent': false,
         'createdBy': FirebaseAuth.instance.currentUser?.uid,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
+      });
 
       // Role-specific fields
       if (role == AppConfig.salesmanRole) {
@@ -143,14 +146,14 @@ class UserService {
   static Future<QueryDocumentSnapshot?> getUserByEmail(String email) async {
     try {
       final querySnapshot = await _platformUsersCollection
-          .where('email', isEqualTo: email.trim())
+          .where('email', isEqualTo: FirestoreUtils.trimField(email))
           .where('isActive', isEqualTo: true)
           .limit(1)
           .get();
 
       return querySnapshot.docs.isNotEmpty ? querySnapshot.docs.first : null;
     } catch (e) {
-      throw 'Failed to get user by email: $e';
+      throw ErrorUtils.handleFirestoreError('get user by email', e);
     }
   }
 
@@ -168,7 +171,7 @@ class UserService {
           .get();
       return querySnapshot.docs;
     } catch (e) {
-      throw 'Failed to load users: $e';
+      throw ErrorUtils.handleFirestoreError('load users', e);
     }
   }
 
@@ -182,7 +185,7 @@ class UserService {
           .get();
       return querySnapshot.docs;
     } catch (e) {
-      throw 'Failed to load users: $e';
+      throw ErrorUtils.handleFirestoreError('load users', e);
     }
   }
 
@@ -198,13 +201,17 @@ class UserService {
   // Update user status
   static Future<void> updateUserStatus(String userId, bool isActive) async {
     try {
-      await _platformUsersCollection.doc(userId).update({
+      final updateData = FirestoreUtils.updateTimestamp({
         'isActive': isActive,
-        'updatedAt': FieldValue.serverTimestamp(),
-        if (!isActive) 'deletedAt': FieldValue.serverTimestamp(),
       });
+
+      if (!isActive) {
+        updateData['deletedAt'] = FieldValue.serverTimestamp();
+      }
+
+      await _platformUsersCollection.doc(userId).update(updateData);
     } catch (e) {
-      throw 'Failed to update user status: $e';
+      throw ErrorUtils.handleFirestoreError('update user status', e);
     }
   }
 
@@ -220,7 +227,7 @@ class UserService {
       // Check if another user with same mobile exists in same organization
       final mobileQuery = await _platformUsersCollection
           .where('organizationId', isEqualTo: organizationId)
-          .where('mobileNumber', isEqualTo: mobileNumber.trim())
+          .where('mobileNumber', isEqualTo: FirestoreUtils.trimField(mobileNumber))
           .where(FieldPath.documentId, isNotEqualTo: userId)
           .limit(1)
           .get();
@@ -229,11 +236,10 @@ class UserService {
         throw 'Another user with mobile number $mobileNumber already exists in this organization';
       }
 
-      Map<String, dynamic> updateData = {
-        'name': name.trim(),
-        'mobileNumber': mobileNumber.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
+      Map<String, dynamic> updateData = FirestoreUtils.updateTimestamp({
+        'name': FirestoreUtils.trimField(name),
+        'mobileNumber': FirestoreUtils.trimField(mobileNumber),
+      });
 
       if (region != null) {
         updateData['region'] = region;
@@ -252,14 +258,15 @@ class UserService {
     int pending = 0,
   }) async {
     try {
-      await _platformUsersCollection.doc(userId).update({
-        'totalEnquiries': FieldValue.increment(total),
-        'completedEnquiries': FieldValue.increment(completed),
-        'pendingEnquiries': FieldValue.increment(pending),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _platformUsersCollection.doc(userId).update(
+          FirestoreUtils.updateTimestamp({
+            'totalEnquiries': FieldValue.increment(total),
+            'completedEnquiries': FieldValue.increment(completed),
+            'pendingEnquiries': FieldValue.increment(pending),
+          })
+      );
     } catch (e) {
-      throw 'Failed to update user counts: $e';
+      throw ErrorUtils.handleFirestoreError('update user counts', e);
     }
   }
 
@@ -277,7 +284,7 @@ class UserService {
           .get();
       return querySnapshot.docs;
     } catch (e) {
-      throw 'Failed to load salesmen by region: $e';
+      throw ErrorUtils.handleFirestoreError('load salesmen by region', e);
     }
   }
 
@@ -297,19 +304,20 @@ class UserService {
 
       return regionStats;
     } catch (e) {
-      throw 'Failed to get region stats: $e';
+      throw ErrorUtils.handleGenericError('get region stats', e);
     }
   }
 
   // Update salesman region
   static Future<void> updateSalesmanRegion(String userId, String region) async {
     try {
-      await _platformUsersCollection.doc(userId).update({
-        'region': region,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _platformUsersCollection.doc(userId).update(
+          FirestoreUtils.updateTimestamp({
+            'region': region,
+          })
+      );
     } catch (e) {
-      throw 'Failed to update salesman region: $e';
+      throw ErrorUtils.handleFirestoreError('update salesman region', e);
     }
   }
 
@@ -322,7 +330,7 @@ class UserService {
       }
       return doc.data() as Map<String, dynamic>;
     } catch (e) {
-      throw 'Failed to get user: $e';
+      throw ErrorUtils.handleFirestoreError('get user', e);
     }
   }
 
@@ -336,7 +344,7 @@ class UserService {
           .get();
       return querySnapshot.docs;
     } catch (e) {
-      throw 'Failed to load users: $e';
+      throw ErrorUtils.handleFirestoreError('load users', e);
     }
   }
 
@@ -353,7 +361,7 @@ class UserService {
 
       return roleCounts;
     } catch (e) {
-      throw 'Failed to get user counts: $e';
+      throw ErrorUtils.handleGenericError('get user counts', e);
     }
   }
 
@@ -387,19 +395,20 @@ class UserService {
             mobile.contains(searchTerm);
       }).toList();
     } catch (e) {
-      throw 'Failed to search users: $e';
+      throw ErrorUtils.handleFirestoreError('search users', e);
     }
   }
 
   // Reactivate user
   static Future<void> reactivateUser(String userId) async {
     try {
-      await _platformUsersCollection.doc(userId).update({
-        'isActive': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _platformUsersCollection.doc(userId).update(
+          FirestoreUtils.updateTimestamp({
+            'isActive': true,
+          })
+      );
     } catch (e) {
-      throw 'Failed to reactivate user: $e';
+      throw ErrorUtils.handleFirestoreError('reactivate user', e);
     }
   }
 
@@ -419,22 +428,20 @@ class UserService {
       final docRef = _platformUsersCollection.doc();
 
       // Create owner user directly (no cloud function needed for owner)
-      Map<String, dynamic> userData = {
+      Map<String, dynamic> userData = FirestoreUtils.addTimestamps({
         'organizationId': organizationId,
-        'name': name.trim(),
-        'email': email.trim(),
-        'mobileNumber': mobileNumber.trim(),
+        'name': FirestoreUtils.trimField(name),
+        'email': FirestoreUtils.trimField(email),
+        'mobileNumber': FirestoreUtils.trimField(mobileNumber),
         'role': 'owner',
         'isActive': true,
         'userId': docRef.id,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
+      });
 
       await docRef.set(userData);
       return docRef.id;
     } catch (e) {
-      throw 'Failed to create owner: $e';
+      throw ErrorUtils.handleGenericError('create owner', e);
     }
   }
 }

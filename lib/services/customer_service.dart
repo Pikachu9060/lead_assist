@@ -1,25 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../shared/utils/error_utils.dart';
+import '../shared/utils/firestore_utils.dart';
 
 class CustomerService {
   static CollectionReference _getCustomersCollection(String organizationId) {
-    return FirebaseFirestore.instance
-        .collection('organizations')
-        .doc(organizationId)
-        .collection('customers');
+    return FirestoreUtils.getCustomersCollection(organizationId);
   }
 
   // Check if customer with mobile already exists in organization
   static Future<bool> doesCustomerExist(String organizationId, String mobileNumber) async {
-    try {
-      final querySnapshot = await _getCustomersCollection(organizationId)
-          .where('mobileNumber', isEqualTo: mobileNumber.trim())
-          .limit(1)
-          .get();
-
-      return querySnapshot.docs.isNotEmpty;
-    } catch (e) {
-      throw 'Failed to check customer: $e';
-    }
+    return await FirestoreUtils.doesDocumentExist(
+      _getCustomersCollection(organizationId),
+      'mobileNumber',
+      mobileNumber,
+    );
   }
 
   // Add new customer (only name, mobile, address)
@@ -36,16 +30,15 @@ class CustomerService {
         throw 'Customer with mobile number $mobileNumber already exists in this organization';
       }
 
-      final docRef = await _getCustomersCollection(organizationId).add({
-        'name': name.trim(),
-        'mobileNumber': mobileNumber.trim(),
-        'address': address.trim(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+      final customerData = FirestoreUtils.addTimestamps({
+        'name': FirestoreUtils.trimField(name),
+        'mobileNumber': FirestoreUtils.trimField(mobileNumber),
+        'address': FirestoreUtils.trimField(address),
         'totalEnquiries': 0,
         'activeEnquiries': 0,
       });
 
+      final docRef = await _getCustomersCollection(organizationId).add(customerData);
       return docRef.id;
     } catch (e) {
       throw e.toString();
@@ -54,16 +47,12 @@ class CustomerService {
 
   // Get customer by mobile number in organization
   static Future<QueryDocumentSnapshot?> getCustomerByMobile(String organizationId, String mobileNumber) async {
-    try {
-      final querySnapshot = await _getCustomersCollection(organizationId)
-          .where('mobileNumber', isEqualTo: mobileNumber.trim())
-          .limit(1)
-          .get();
-
-      return querySnapshot.docs.isNotEmpty ? querySnapshot.docs.first : null;
-    } catch (e) {
-      throw 'Failed to get customer: $e';
-    }
+    final snapshot = await FirestoreUtils.getDocumentByField(
+      _getCustomersCollection(organizationId),
+      'mobileNumber',
+      mobileNumber,
+    );
+    return snapshot as QueryDocumentSnapshot?;
   }
 
   // Get customer by ID in organization
@@ -74,13 +63,14 @@ class CustomerService {
   // Update customer enquiry counts
   static Future<void> updateCustomerEnquiryCount(String organizationId, String customerId, {bool increment = true}) async {
     try {
-      await _getCustomersCollection(organizationId).doc(customerId).update({
-        'totalEnquiries': FieldValue.increment(increment ? 1 : -1),
-        'activeEnquiries': FieldValue.increment(increment ? 1 : -1),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _getCustomersCollection(organizationId).doc(customerId).update(
+          FirestoreUtils.updateTimestamp({
+            'totalEnquiries': FieldValue.increment(increment ? 1 : -1),
+            'activeEnquiries': FieldValue.increment(increment ? 1 : -1),
+          })
+      );
     } catch (e) {
-      throw 'Failed to update customer count: $e';
+      throw ErrorUtils.handleFirestoreError('update customer count', e);
     }
   }
 
@@ -100,7 +90,7 @@ class CustomerService {
           .get();
       return querySnapshot.docs;
     } catch (e) {
-      throw 'Failed to load customers: $e';
+      throw ErrorUtils.handleFirestoreError('load customers', e);
     }
   }
 
@@ -120,7 +110,7 @@ class CustomerService {
 
       await _getCustomersCollection(organizationId).doc(customerId).delete();
     } catch (e) {
-      throw 'Failed to delete customer: $e';
+      throw ErrorUtils.handleGenericError('Delete customer', e);
     }
   }
 
@@ -135,7 +125,7 @@ class CustomerService {
     try {
       // Check if another customer with same mobile exists (excluding current customer)
       final querySnapshot = await _getCustomersCollection(organizationId)
-          .where('mobileNumber', isEqualTo: mobileNumber.trim())
+          .where('mobileNumber', isEqualTo: FirestoreUtils.trimField(mobileNumber))
           .where(FieldPath.documentId, isNotEqualTo: customerId)
           .limit(1)
           .get();
@@ -144,12 +134,13 @@ class CustomerService {
         throw 'Another customer with mobile number $mobileNumber already exists in this organization';
       }
 
-      await _getCustomersCollection(organizationId).doc(customerId).update({
-        'name': name.trim(),
-        'mobileNumber': mobileNumber.trim(),
-        'address': address.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _getCustomersCollection(organizationId).doc(customerId).update(
+          FirestoreUtils.updateTimestamp({
+            'name': FirestoreUtils.trimField(name),
+            'mobileNumber': FirestoreUtils.trimField(mobileNumber),
+            'address': FirestoreUtils.trimField(address),
+          })
+      );
     } catch (e) {
       throw e.toString();
     }
@@ -164,7 +155,7 @@ class CustomerService {
       }
       return doc.data() as Map<String, dynamic>;
     } catch (e) {
-      throw 'Failed to get customer: $e';
+      throw ErrorUtils.handleFirestoreError('get customer', e);
     }
   }
 }

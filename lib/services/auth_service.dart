@@ -1,15 +1,17 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../shared/utils/error_utils.dart';
+import '../shared/utils/firestore_utils.dart';
 
 class AuthService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
-  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static Future<UserCredential> login(String email, String password) async {
     try {
+      _auth.signOut();
       final credential = await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password.trim(),
+        email: FirestoreUtils.trimField(email),
+        password: FirestoreUtils.trimField(password),
       );
 
       // Get user data from platform_users collection
@@ -22,36 +24,31 @@ class AuthService {
 
       return credential;
     } on FirebaseAuthException catch (e) {
-      throw _handleAuthError(e);
+      print('❌ Auth Exception: ${e.code} - ${e.message}');
+      throw ErrorUtils.handleFirebaseAuthError(e);
     } catch (e) {
-      throw 'Login failed: $e';
+      throw ErrorUtils.handleGenericError('Login', e);
     }
   }
 
   // Get platform user by email
   static Future<DocumentSnapshot?> _getPlatformUserByEmail(String email) async {
-    try {
-      final query = await _firestore
-          .collection('platform_users')
-          .where('email', isEqualTo: email.trim())
-          .limit(1)
-          .get();
-      return query.docs.isNotEmpty ? query.docs.first : null;
-    } catch (e) {
-      throw 'Failed to get user data: $e';
-    }
+    return await FirestoreUtils.getDocumentByField(
+      FirestoreUtils.platformUsersCollection,
+      'email',
+      email,
+    );
   }
 
   // Get user data with organization context
   static Future<Map<String, dynamic>?> getUserData(String userId) async {
     try {
-      final userDoc = await _firestore.collection('platform_users').doc(userId).get();
+      final userDoc = await FirestoreUtils.platformUsersCollection.doc(userId).get();
       if (!userDoc.exists) return null;
 
-      final userData = userDoc.data()!;
-      return userData;
+      return userDoc.data()! as Map<String, dynamic>;
     } catch (e) {
-      throw 'Failed to get user data: $e';
+      throw ErrorUtils.handleFirestoreError('get user data', e);
     }
   }
 
@@ -61,47 +58,21 @@ class AuthService {
 
   // Check if email exists in platform
   static Future<bool> doesEmailExist(String email) async {
-    try {
-      final query = await _firestore
-          .collection('platform_users')
-          .where('email', isEqualTo: email.trim())
-          .limit(1)
-          .get();
-      return query.docs.isNotEmpty;
-    } catch (e) {
-      throw 'Failed to check email: $e';
-    }
+    return await FirestoreUtils.doesDocumentExist(
+      FirestoreUtils.platformUsersCollection,
+      'email',
+      email,
+    );
   }
 
   // Reset password
   static Future<void> resetPassword(String email) async {
     try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
+      await _auth.sendPasswordResetEmail(email: FirestoreUtils.trimField(email));
     } on FirebaseAuthException catch (e) {
-      throw _handleAuthError(e);
+      throw ErrorUtils.handleFirebaseAuthError(e);
     } catch (e) {
-      throw 'Failed to reset password: $e';
-    }
-  }
-
-  static String _handleAuthError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'user-not-found':
-        return 'No user found with this email.';
-      case 'wrong-password':
-        return 'Wrong password provided.';
-      case 'email-already-in-use':
-        return 'Email already in use.';
-      case 'weak-password':
-        return 'Password is too weak.';
-      case 'invalid-email':
-        return 'Email is invalid.';
-      case 'too-many-requests':
-        return 'Too many attempts. Please try again later.';
-      case 'network-request-failed':
-        return 'Network error. Please check your connection.';
-      default:
-        return 'Authentication failed: ${e.message}';
+      throw ErrorUtils.handleGenericError('Reset password', e);
     }
   }
 

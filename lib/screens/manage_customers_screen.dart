@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/customer_service.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/loading_indicator.dart';
+import '../shared/utils/date_utils.dart';
 import 'edit_customer_screen.dart';
 
 class ManageCustomersScreen extends StatefulWidget {
@@ -85,9 +86,9 @@ class _ManageCustomersScreenState extends State<ManageCustomersScreen> {
               _buildDetailRow('Total Enquiries', '${data['totalEnquiries'] ?? 0}'),
               _buildDetailRow('Active Enquiries', '${data['activeEnquiries'] ?? 0}'),
               const SizedBox(height: 16),
-              _buildDetailRow('Created', _formatDate(data['createdAt'])),
+              _buildDetailRow('Created', DateUtilHelper.formatDateTime(data['createdAt'])),
               if (data['updatedAt'] != null)
-                _buildDetailRow('Last Updated', _formatDate(data['updatedAt'])),
+                _buildDetailRow('Last Updated', DateUtilHelper.formatDateTime(data['updatedAt'])),
             ],
           ),
         ),
@@ -143,16 +144,6 @@ class _ManageCustomersScreenState extends State<ManageCustomersScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.green),
     );
-  }
-
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown';
-    try {
-      final date = timestamp.toDate();
-      return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-    } catch (e) {
-      return 'Invalid date';
-    }
   }
 
   @override
