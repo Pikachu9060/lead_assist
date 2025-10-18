@@ -1,13 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/enquiry_service.dart';
-import '../services/auth_service.dart';
-import '../services/user_service.dart';
+import '../cached_services/cached_enquiry_service.dart';
+import '../cached_services/cached_data_service.dart';
+import '../cached_services/cached_user_service.dart';
+import '../models/enquiry_model.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/error_widget.dart';
 import 'manage_enquiries_screen.dart';
-import '../core/config.dart';
 
 class SalesmanDashboard extends StatefulWidget {
   final String organizationId;
@@ -23,22 +22,31 @@ class SalesmanDashboard extends StatefulWidget {
 
 class _SalesmanDashboardState extends State<SalesmanDashboard> {
   final List<String> _selectedStatuses = ['all'];
+  bool _isHiveInitialized = false;
 
-  Future<String?> _loadOrganizationName() async {
-    final orgDoc = await FirebaseFirestore.instance
-        .collection(AppConfig.organizationsCollection)
-        .doc(widget.organizationId)
-        .get();
-    if (orgDoc.exists) {
-      final orgData = orgDoc.data() as Map<String, dynamic>;
-      return orgData["name"];
+  @override
+  void initState() {
+    super.initState();
+    _initializeHive();
+  }
+
+  Future<void> _initializeHive() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      await CachedDataService.initializeForUser(
+        userId: user.uid,
+        userRole: 'salesman',
+        organizationId: widget.organizationId,
+      );
+      setState(() {
+        _isHiveInitialized = true;
+      });
     }
-    return null;
   }
 
   void _logout(BuildContext context) async {
     try {
-      await AuthService.logout();
+      await CachedDataService.logout();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Logout failed: $e')),
@@ -53,17 +61,9 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
 
     return Scaffold(
       appBar: AppBar(
-        title: FutureBuilder(
-          future: _loadOrganizationName(),
-          builder: (context, snapshot) {
-            if (snapshot.hasData) {
-              return Text(
-                snapshot.data ?? "Organization",
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              );
-            }
-            return const Text("Organization");
-          },
+        title: const Text(
+          'Salesman Dashboard',
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
@@ -73,10 +73,10 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
           ),
         ],
       ),
-      body: userId == null
-          ? const CustomErrorWidget(message: 'User not authenticated')
+      body: userId == null || !_isHiveInitialized
+          ? const LoadingIndicator()
           : FutureBuilder<Map<String, dynamic>?>(
-        future: UserService.getUser(userId),
+        future: CachedUserService.getDashboardUserData(userId),
         builder: (context, userSnapshot) {
           if (userSnapshot.connectionState == ConnectionState.waiting) {
             return const LoadingIndicator();
@@ -135,120 +135,31 @@ class _DashboardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: ClipRect(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _WelcomeHeader(
-              userName: userName,
-              userEmail: userEmail,
-              userRegion: userRegion,
-            ),
-            const SizedBox(height: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _WelcomeHeader(
+            userName: userName,
+            userEmail: userEmail,
+            userRegion: userRegion,
+          ),
+          const SizedBox(height: 24),
 
-            // Stats Section
-            const Text(
-              'My Performance',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
+          const Text(
+            'My Performance',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
 
-            // Stats Cards - Clickable
-            _SalesmanStats(
-              salesmanId: salesmanId,
-              organizationId: organizationId,
-              onStatusTap: (String status) => _navigateToManageEnquiriesWithFilter(context, status),
-            ),
-            const SizedBox(height: 24),
-
-            // Quick Actions
-            // _buildQuickActions(context),
-            // const SizedBox(height: 24),
-
-            // Recent Enquiries
-            // const Text(
-            //   'Recent Enquiries',
-            //   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            // ),
-            // const SizedBox(height: 16),
-            //
-            // Expanded(
-            //   child: _EnquiriesList(
-            //     salesmanId: salesmanId,
-            //     organizationId: organizationId,
-            //     selectedStatuses: selectedStatuses,
-            //   ),
-            // ),
-          ],
-        ),
+          _SalesmanStats(
+            salesmanId: salesmanId,
+            organizationId: organizationId,
+            onStatusTap: (String status) => _navigateToManageEnquiriesWithFilter(context, status),
+          ),
+        ],
       ),
     );
   }
-
-  // Widget _buildQuickActions(BuildContext context) {
-  //   return Card(
-  //     child: Padding(
-  //       padding: const EdgeInsets.all(16.0),
-  //       child: Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           const Text(
-  //             'Quick Actions',
-  //             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-  //           ),
-  //           const SizedBox(height: 12),
-  //           Row(
-  //             children: [
-  //               Expanded(
-  //                 child: _buildActionButton(
-  //                   icon: Icons.assignment,
-  //                   label: 'All Enquiries',
-  //                   onTap: () => _navigateToManageEnquiriesWithFilter(context, 'all'),
-  //                 ),
-  //               ),
-  //               const SizedBox(width: 12),
-  //               Expanded(
-  //                 child: _buildActionButton(
-  //                   icon: Icons.filter_list,
-  //                   label: 'With Filters',
-  //                   onTap: () => _navigateToManageEnquiries(context),
-  //                 ),
-  //               ),
-  //             ],
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // Widget _buildActionButton({
-  //   required IconData icon,
-  //   required String label,
-  //   required VoidCallback onTap,
-  // }) {
-  //   return InkWell(
-  //     onTap: onTap,
-  //     child: Container(
-  //       padding: const EdgeInsets.all(12),
-  //       decoration: BoxDecoration(
-  //         color: Colors.blue.shade50,
-  //         borderRadius: BorderRadius.circular(8),
-  //       ),
-  //       child: Column(
-  //         children: [
-  //           Icon(icon, color: Colors.blue, size: 24),
-  //           const SizedBox(height: 4),
-  //           Text(
-  //             label,
-  //             textAlign: TextAlign.center,
-  //             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
 
   void _navigateToManageEnquiriesWithFilter(BuildContext context, String status) {
     Navigator.push(
@@ -257,23 +168,11 @@ class _DashboardContent extends StatelessWidget {
         builder: (context) => ManageEnquiriesScreen(
           organizationId: organizationId,
           salesmanId: salesmanId,
-          initialStatus: status, // Pass single status
+          initialStatus: status,
         ),
       ),
     );
   }
-
-  // void _navigateToManageEnquiries(BuildContext context) {
-  //   Navigator.push(
-  //     context,
-  //     MaterialPageRoute(
-  //       builder: (context) => ManageEnquiriesScreen(
-  //         organizationId: organizationId,
-  //         salesmanId: salesmanId,
-  //       ),
-  //     ),
-  //   );
-  // }
 }
 
 class _WelcomeHeader extends StatelessWidget {
@@ -349,44 +248,32 @@ class _SalesmanStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: EnquiryService.getEnquiriesForSalesman(organizationId, salesmanId),
+    return StreamBuilder<List<EnquiryModel>>(
+      stream: CachedEnquiryService.watchEnquiriesForSalesman(organizationId, salesmanId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const LoadingIndicator();
         }
 
-        if (!snapshot.hasData) {
-          return const SizedBox();
+        if (snapshot.hasError) {
+          return const CustomErrorWidget(message: 'Failed to load enquiries');
         }
 
-        final enquiries = snapshot.data!.docs;
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _buildEmptyStats(context);
+        }
+
+        final enquiries = snapshot.data!;
         final totalEnquiries = enquiries.length;
-        final completedEnquiries = enquiries.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return data['status'] == 'completed';
-        }).length;
-
-        final pendingEnquiries = enquiries.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return data['status'] == 'pending';
-        }).length;
-
-        final inProgressEnquiries = enquiries.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return data['status'] == 'in_progress';
-        }).length;
-
-        final cancelledEnquiries = enquiries.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return data['status'] == 'cancelled';
-        }).length;
+        final completedEnquiries = enquiries.where((enquiry) => enquiry.status == 'completed').length;
+        final pendingEnquiries = enquiries.where((enquiry) => enquiry.status == 'pending').length;
+        final inProgressEnquiries = enquiries.where((enquiry) => enquiry.status == 'in_progress').length;
+        final cancelledEnquiries = enquiries.where((enquiry) => enquiry.status == 'cancelled').length;
 
         return IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Total Card
               Expanded(
                 flex: 2,
                 child: _buildStatCard(
@@ -398,12 +285,10 @@ class _SalesmanStats extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              // Status Cards
               Expanded(
                 flex: 3,
                 child: Column(
                   children: [
-                    // First row
                     Expanded(
                       child: Row(
                         children: [
@@ -430,7 +315,6 @@ class _SalesmanStats extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Second row
                     Expanded(
                       child: Row(
                         children: [
@@ -463,6 +347,85 @@ class _SalesmanStats extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildEmptyStats(BuildContext context) {
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 2,
+            child: _buildStatCard(
+              title: 'Total',
+              count: 0,
+              color: Colors.purpleAccent,
+              icon: Icons.assignment,
+              onTap: () => _handleCardTap(context, 'all'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          title: 'Pending',
+                          count: 0,
+                          color: Colors.blue,
+                          icon: Icons.pending,
+                          onTap: () => _handleCardTap(context, 'pending'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildStatCard(
+                          title: 'In Progress',
+                          count: 0,
+                          color: Colors.orange,
+                          icon: Icons.autorenew,
+                          onTap: () => _handleCardTap(context, 'in_progress'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatCard(
+                          title: 'Completed',
+                          count: 0,
+                          color: Colors.green,
+                          icon: Icons.check_circle,
+                          onTap: () => _handleCardTap(context, 'completed'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildStatCard(
+                          title: 'Cancelled',
+                          count: 0,
+                          color: Colors.red,
+                          icon: Icons.cancel,
+                          onTap: () => _handleCardTap(context, 'cancelled'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -527,7 +490,7 @@ class _SalesmanStats extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Icon(Icons.arrow_circle_right_outlined,color: color)
+                Icon(Icons.arrow_circle_right_outlined, color: color)
               ],
             ),
           ),
@@ -536,188 +499,3 @@ class _SalesmanStats extends StatelessWidget {
     );
   }
 }
-
-// ... Rest of the _EnquiriesList and _EnquiryCard classes remain the same as your original code
-
-// class _EnquiriesList extends StatefulWidget {
-//   final String salesmanId;
-//   final String organizationId;
-//   final List<String> selectedStatuses;
-//
-//   const _EnquiriesList({
-//     required this.salesmanId,
-//     required this.organizationId,
-//     required this.selectedStatuses,
-//   });
-//
-//   @override
-//   State<_EnquiriesList> createState() => __EnquiriesListState();
-// }
-//
-// class __EnquiriesListState extends State<_EnquiriesList> {
-//   late Stream<QuerySnapshot> _enquiriesStream;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     _updateStream();
-//   }
-//
-//   @override
-//   void didUpdateWidget(_EnquiriesList oldWidget) {
-//     super.didUpdateWidget(oldWidget);
-//     // Only update the stream if the status filter actually changed
-//     if (oldWidget.selectedStatuses.join() != widget.selectedStatuses.join()) {
-//       _updateStream();
-//     }
-//   }
-//
-//   void _updateStream() {
-//     final effectiveStatuses = widget.selectedStatuses.contains('all')
-//         ? ['pending', 'in_progress', 'completed', 'cancelled']
-//         : widget.selectedStatuses;
-//
-//     _enquiriesStream = EnquiryService.searchEnquiries(
-//       searchType: 'customer',
-//       query: '',
-//       statuses: effectiveStatuses,
-//       organizationId: widget.organizationId,
-//       salesmanId: widget.salesmanId,
-//     );
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return StreamBuilder<QuerySnapshot>(
-//       stream: _enquiriesStream,
-//       builder: (context, snapshot) {
-//         if (snapshot.connectionState == ConnectionState.waiting) {
-//           return const LoadingIndicator();
-//         }
-//
-//         if (snapshot.hasError) {
-//           return CustomErrorWidget(
-//             message: 'Failed to load enquiries: ${snapshot.error}',
-//             onRetry: () {},
-//           );
-//         }
-//
-//         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-//           return const EmptyStateWidget(
-//             message: 'No enquiries assigned to you yet',
-//             icon: Icons.assignment,
-//           );
-//         }
-//
-//         final enquiries = snapshot.data!.docs;
-//
-//         return ListView.separated(
-//           itemCount: enquiries.length,
-//           separatorBuilder: (context, index) => const SizedBox(height: 8),
-//           itemBuilder: (context, index) {
-//             final enquiry = enquiries[index];
-//             final data = enquiry.data() as Map<String, dynamic>;
-//
-//             return _EnquiryCard(
-//               enquiryId: enquiry.id,
-//               data: data,
-//               onTap: () => _navigateToEnquiryDetail(context, enquiry.id, data, widget.organizationId),
-//             );
-//           },
-//         );
-//       },
-//     );
-//   }
-//
-//   void _navigateToEnquiryDetail(BuildContext context, String enquiryId, Map<String, dynamic> data, String organizationId) async{
-//     final userData = await CustomerService.getCustomerById(organizationId, data["customerId"]);
-//     Navigator.push(
-//       context,
-//       MaterialPageRoute(
-//         builder: (context) => EnquiryDetailScreen(
-//           userData: userData.data() as Map<String, dynamic>,
-//           enquiryId: enquiryId,
-//           enquiryData: data,
-//           organizationId: organizationId,
-//           isSalesman: true,
-//         ),
-//       ),
-//     );
-//   }
-// }
-//
-// class _EnquiryCard extends StatelessWidget {
-//   final String enquiryId;
-//   final Map<String, dynamic> data;
-//   final VoidCallback onTap;
-//
-//   const _EnquiryCard({
-//     required this.enquiryId,
-//     required this.data,
-//     required this.onTap,
-//   });
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Card(
-//       elevation: 2,
-//       child: ListTile(
-//         leading: StatusIcon(status: data['status']),
-//         title: Text(
-//           data['customerName'] ?? 'Unknown Customer',
-//           style: const TextStyle(fontWeight: FontWeight.bold),
-//           maxLines: 1,
-//           overflow: TextOverflow.ellipsis,
-//         ),
-//         subtitle: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Text(
-//               data['product'] ?? 'No product specified',
-//               maxLines: 1,
-//               overflow: TextOverflow.ellipsis,
-//             ),
-//             const SizedBox(height: 4),
-//             Row(
-//               children: [
-//                 Container(
-//                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-//                   decoration: BoxDecoration(
-//                     color: StatusUtils.getSalesmanStatusColor(data['status']).withOpacity(0.1),
-//                     borderRadius: BorderRadius.circular(12),
-//                     border: Border.all(
-//                       color: StatusUtils.getSalesmanStatusColor(data['status']).withOpacity(0.3),
-//                     ),
-//                   ),
-//                   child: Text(
-//                     StatusUtils.formatStatus(data['status']),
-//                     style: TextStyle(
-//                       fontSize: 10,
-//                       fontWeight: FontWeight.w600,
-//                       color: StatusUtils.getSalesmanStatusColor(data['status']),
-//                     ),
-//                   ),
-//                 ),
-//                 const Spacer(),
-//                 if (data['createdAt'] != null)
-//                   Text(
-//                     DateUtilHelper.formatDate(data['createdAt']),
-//                     style: TextStyle(
-//                       color: Colors.grey[600],
-//                       fontSize: 10,
-//                     ),
-//                   ),
-//               ],
-//             ),
-//           ],
-//         ),
-//         trailing: Icon(
-//           Icons.chevron_right,
-//           color: Colors.grey.shade400,
-//         ),
-//         onTap: onTap,
-//         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-//       ),
-//     );
-//   }
-// }

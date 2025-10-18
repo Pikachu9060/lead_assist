@@ -1,11 +1,17 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import '../services/enquiry_service.dart';
+import '../cached_services/cached_enquiry_service.dart';
+import '../cached_services/cached_customer_service.dart';
+import '../cached_services/cached_user_service.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/status_icon.dart';
 import '../shared/utils/date_utils.dart';
 import 'enquiry_detail_screen.dart';
+import '../models/enquiry_model.dart';
+import '../models/customer_model.dart';
+import '../models/user_model.dart';
 
 class ManageEnquiriesScreen extends StatefulWidget {
   final String organizationId;
@@ -28,7 +34,7 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
   final List<String> _allStatuses = ['all', 'pending', 'in_progress', 'completed', 'cancelled'];
   String _searchQuery = '';
   bool _showFilters = true;
-  bool _isSearchExpanded = false; // Controls app bar search expansion
+  bool _isSearchExpanded = false;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -78,22 +84,19 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
 
   Widget _buildSearchField() {
     return TextField(
-
       controller: _searchController,
       autofocus: true,
       decoration: InputDecoration(
-        hintText: 'Search in product, description...',
+        hintText: 'Search product, description, customer name, mobile or address...',
         border: InputBorder.none,
         hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
       ),
-      // style: const TextStyle(color: Colors.white),
       onChanged: (value) {
         setState(() {
           _searchQuery = value.trim();
         });
       },
       onSubmitted: (value) {
-        // Keep search expanded after submission
         setState(() {
           _searchQuery = value.trim();
         });
@@ -193,7 +196,6 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Status Filters
             Row(
               children: [
                 GestureDetector(
@@ -346,63 +348,74 @@ class _EnquiriesList extends StatefulWidget {
 }
 
 class __EnquiriesListState extends State<_EnquiriesList> {
-  late Stream<QuerySnapshot> _enquiriesStream;
+  final Map<String, CustomerModel> _customerCache = {};
+  final Map<String, UserModel> _salesmanCache = {};
+  final ValueNotifier<List<EnquiryModel>> _enquiriesNotifier = ValueNotifier<List<EnquiryModel>>([]);
+  bool _isInitialLoad = true;
 
   @override
   void initState() {
     super.initState();
-    _updateStream();
+    _initializeStreams();
   }
 
   @override
-  void didUpdateWidget(_EnquiriesList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedStatuses.join() != widget.selectedStatuses.join()) {
-      _updateStream();
-    }
+  void dispose() {
+    _enquiriesNotifier.dispose();
+    super.dispose();
   }
 
-  void _updateStream() {
-    _enquiriesStream = EnquiryService.searchEnquiries(
-      salesmanId: widget.salesmanId,
-      searchType: 'all', // Always get all data for client-side search
-      query: '', // Empty query to get all data
-      statuses: widget.selectedStatuses,
-      organizationId: widget.organizationId,
+  void _initializeStreams() {
+    // Initialize customer stream
+    final customerStream = CachedCustomerService.watchCustomers(widget.organizationId);
+    customerStream.listen((customers) {
+      for (final customer in customers) {
+        _customerCache[customer.customerId] = customer;
+      }
+      if (mounted) setState(() {});
+    });
+
+    // Initialize salesman stream
+    final salesmanStream = CachedUserService.watchUsers(widget.organizationId);
+    salesmanStream.listen((users) {
+      for (final user in users) {
+        _salesmanCache[user.userId] = user;
+      }
+      if (mounted) setState(() {});
+    });
+
+    // Initialize enquiries stream
+    final enquiriesStream = widget.salesmanId != null
+        ? CachedEnquiryService.watchEnquiriesForSalesman(
+      widget.organizationId,
+      widget.salesmanId!,
+      status: widget.selectedStatuses.contains('all') ? null : widget.selectedStatuses,
+    )
+        : CachedEnquiryService.watchEnquiriesByStatus(
+        widget.organizationId,
+        widget.selectedStatuses
     );
+
+    enquiriesStream.listen((enquiries) {
+      _enquiriesNotifier.value = enquiries;
+      if (_isInitialLoad) {
+        setState(() {
+          _isInitialLoad = false;
+        });
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _enquiriesStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingIndicator();
-        }
+    if (_isInitialLoad) {
+      return const LoadingIndicator();
+    }
 
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error: ${snapshot.error}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          );
-        }
-
-        if (!snapshot.hasData) {
-          return const EmptyStateWidget(
-            message: 'No data available',
-            icon: Icons.error_outline,
-          );
-        }
-
-        // Get all enquiries from stream
-        List<QueryDocumentSnapshot> allEnquiries = snapshot.data!.docs;
-
-        // Apply client-side search filtering
-        List<QueryDocumentSnapshot> filteredEnquiries = _applySearchFilter(allEnquiries);
+    return ValueListenableBuilder<List<EnquiryModel>>(
+      valueListenable: _enquiriesNotifier,
+      builder: (context, enquiries, child) {
+        final filteredEnquiries = _applySearchFilter(enquiries);
 
         if (filteredEnquiries.isEmpty) {
           return EmptyStateWidget(
@@ -417,135 +430,215 @@ class __EnquiriesListState extends State<_EnquiriesList> {
           itemCount: filteredEnquiries.length,
           itemBuilder: (context, index) {
             final enquiry = filteredEnquiries[index];
-            final data = enquiry.data() as Map<String, dynamic>;
+            final customer = _customerCache[enquiry.customerId];
+            final salesman = _salesmanCache[enquiry.assignedSalesmanId];
 
-            return _EnquiryCard(
-              enquiryId: enquiry.id,
-              data: data,
-              searchQuery: widget.searchQuery, // Pass search query for highlighting
-              onTap: () => _navigateToEnquiryDetail(
-                context,
-                enquiry.id,
-                data,
-                widget.organizationId,
-              ),
-            );
+            return _buildEnquiryCard(enquiry, customer, salesman);
           },
         );
       },
     );
   }
 
-  List<QueryDocumentSnapshot> _applySearchFilter(List<QueryDocumentSnapshot> enquiries) {
+  List<EnquiryModel> _applySearchFilter(List<EnquiryModel> enquiries) {
     if (widget.searchQuery.isEmpty) {
-      return enquiries; // Return all if no search query
+      return enquiries;
     }
 
     final searchTerm = widget.searchQuery.toLowerCase();
 
     return enquiries.where((enquiry) {
-      final data = enquiry.data() as Map<String, dynamic>;
+      final customer = _customerCache[enquiry.customerId];
 
-      // Search across multiple fields
-      final product = data['product']?.toString().toLowerCase() ?? '';
-      final description = data['description']?.toString().toLowerCase() ?? '';
-      final customerName = data['customerName']?.toString().toLowerCase() ?? '';
-      final salesmanName = data['assignedSalesmanName']?.toString().toLowerCase() ?? '';
+      final product = enquiry.product.toLowerCase();
+      final description = enquiry.description.toLowerCase();
+      final customerName = customer?.name.toLowerCase() ?? '';
+      final customerMobile = customer?.mobileNumber.toLowerCase() ?? '';
+      final customerAddress = customer?.address.toLowerCase() ?? '';
 
-      // Search in all relevant fields
       return product.contains(searchTerm) ||
           description.contains(searchTerm) ||
           customerName.contains(searchTerm) ||
-          salesmanName.contains(searchTerm);
+          customerMobile.contains(searchTerm) ||
+          customerAddress.contains(searchTerm);
     }).toList();
   }
 
-  void _navigateToEnquiryDetail(
-      BuildContext context,
-      String enquiryId,
-      Map<String, dynamic> data,
-      String organizationId,
-      ) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EnquiryDetailScreen(
-          enquiryId: enquiryId,
-          organizationId: organizationId,
-          isSalesman: widget.salesmanId != null,
-        ),
-      ),
-    );
-  }
-}
-
-class _EnquiryCard extends StatelessWidget {
-  final String enquiryId;
-  final Map<String, dynamic> data;
-  final String searchQuery;
-  final VoidCallback onTap;
-
-  const _EnquiryCard({
-    required this.enquiryId,
-    required this.data,
-    required this.searchQuery,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildEnquiryCard(EnquiryModel enquiry, CustomerModel? customer, UserModel? salesman) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ListTile(
-        leading: StatusIcon(status: data['status']),
-        title: _buildHighlightedText(
-          data['product'] ?? 'No Product',
-          searchQuery,
-          isTitle: true,
+        leading: StatusIcon(status: enquiry.status),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (customer != null)
+              _buildCustomerNameWithMobile(customer),
+            const SizedBox(height: 4),
+            _buildProductInfo(enquiry),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHighlightedText(
-              data['description'] ?? 'No description',
-              searchQuery,
-            ),
             const SizedBox(height: 4),
-            // if (data['customerName'] != null)
-            //   _buildHighlightedText(
-            //     'Customer: ${data['customerName']}',
-            //     searchQuery,
-            //   ),
-            // if (data['assignedSalesmanName'] != null)
-            //   _buildHighlightedText(
-            //     'Salesman: ${data['assignedSalesmanName']}',
-            //     searchQuery,
-            //   ),
-            // const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600),
-                const SizedBox(width: 4),
-                Text(
-                  DateUtilHelper.formatDate(data['createdAt']),
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+            if (salesman != null && _shouldShowSalesman(salesman))
+              _buildSalesmanInfo(salesman),
+            const SizedBox(height: 4),
+            _buildDatesInfo(enquiry),
           ],
         ),
         trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
+        onTap: () => _navigateToEnquiryDetail(context, enquiry),
       ),
     );
   }
 
-  Widget _buildHighlightedText(String text, String query, {bool isTitle = false}) {
+  bool _shouldShowSalesman(UserModel salesman) {
+    return salesman.role == 'manager' || salesman.role == 'owner';
+  }
+
+  Widget _buildCustomerNameWithMobile(CustomerModel customer) {
+    return RichText(
+      text: TextSpan(
+        children: [
+          TextSpan(
+            text: customer.name,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          TextSpan(
+            text: ' (${customer.mobileNumber})',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontStyle: FontStyle.italic,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductInfo(EnquiryModel enquiry) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RichText(
+          text: TextSpan(
+            children: [
+              const TextSpan(
+                text: 'Product: ',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              TextSpan(
+                text: enquiry.product,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 2),
+        _buildHighlightedText(
+          enquiry.description,
+          widget.searchQuery,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSalesmanInfo(UserModel salesman) {
+    return RichText(
+      text: TextSpan(
+        children: [
+          const TextSpan(
+            text: 'Assigned to: ',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 11,
+            ),
+          ),
+          TextSpan(
+            text: '${salesman.name} (${salesman.role})',
+            style: TextStyle(
+              color: Colors.blue.shade700,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDatesInfo(EnquiryModel enquiry) {
+    return Row(
+      children: [
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              children: [
+                const TextSpan(
+                  text: 'Created: ',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 10,
+                  ),
+                ),
+                TextSpan(
+                  text: DateUtilHelper.formatDate(enquiry.createdAt),
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              children: [
+                const TextSpan(
+                  text: 'Updated: ',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 10,
+                  ),
+                ),
+                TextSpan(
+                  text: DateUtilHelper.formatDate(enquiry.updatedAt),
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHighlightedText(
+      String text,
+      String query, {
+        bool isTitle = false,
+      }) {
     if (query.isEmpty) {
       return Text(
         text,
@@ -567,7 +660,6 @@ class _EnquiryCard extends StatelessWidget {
     while (start < textLower.length) {
       final matchIndex = textLower.indexOf(queryLower, start);
       if (matchIndex == -1) {
-        // No more matches
         matches.add(TextSpan(
           text: text.substring(start),
           style: TextStyle(
@@ -579,7 +671,6 @@ class _EnquiryCard extends StatelessWidget {
         break;
       }
 
-      // Add text before match
       if (matchIndex > start) {
         matches.add(TextSpan(
           text: text.substring(start, matchIndex),
@@ -591,7 +682,6 @@ class _EnquiryCard extends StatelessWidget {
         ));
       }
 
-      // Add matched text with highlight
       matches.add(TextSpan(
         text: text.substring(matchIndex, matchIndex + query.length),
         style: TextStyle(
@@ -609,6 +699,19 @@ class _EnquiryCard extends StatelessWidget {
       maxLines: 1,
       overflow: isTitle ? TextOverflow.ellipsis : TextOverflow.fade,
       text: TextSpan(children: matches),
+    );
+  }
+
+  void _navigateToEnquiryDetail(BuildContext context, EnquiryModel enquiry) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EnquiryDetailScreen(
+          enquiryId: enquiry.enquiryId,
+          organizationId: widget.organizationId,
+          isSalesman: widget.salesmanId != null,
+        ),
+      ),
     );
   }
 }

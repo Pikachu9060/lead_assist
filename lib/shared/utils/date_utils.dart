@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class DateUtilHelper {
   static String formatDate(dynamic timestamp) {
     if (timestamp == null) return 'Unknown';
@@ -7,6 +9,13 @@ class DateUtilHelper {
     } catch (e) {
       return 'Invalid date';
     }
+  }
+
+  static DateTime parseTimestamp(dynamic timestamp) {
+    if (timestamp == null) return DateTime.now();
+    if (timestamp is Timestamp) return timestamp.toDate();
+    if (timestamp is DateTime) return timestamp;
+    return DateTime.now();
   }
 
   static String formatDateTime(dynamic timestamp) {
