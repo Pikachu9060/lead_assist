@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/config.dart';
 import '../shared/utils/error_utils.dart';
 import '../shared/utils/firestore_utils.dart';
 

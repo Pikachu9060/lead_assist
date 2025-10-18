@@ -143,9 +143,6 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final selectedUser = _salesmen.firstWhere(
-        (doc) => doc.id == _selectedUserId,
-      );
 
       await EnquiryService.addEnquiryWithCustomer(
         customerId: _customerId!,

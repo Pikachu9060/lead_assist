@@ -1,4 +1,3 @@
-// services/user_service.dart
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -48,7 +47,6 @@ class UserService {
     String? region,
   }) async {
     StreamSubscription? subscription;
-    int retryCount = 0;
     const int maxRetries = 3;
 
     try {

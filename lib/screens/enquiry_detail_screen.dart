@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:leadassist/shared/utils/firestore_utils.dart';
 import '../services/enquiry_service.dart';
 import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
@@ -10,16 +11,12 @@ import '../shared/utils/status_utils.dart';
 
 class EnquiryDetailScreen extends StatefulWidget {
   final String enquiryId;
-  final Map<String, dynamic> enquiryData;
   final bool isSalesman;
   final String organizationId;
-  final Map<String, dynamic> userData;
 
   const EnquiryDetailScreen({
     super.key,
-    required this.userData,
     required this.enquiryId,
-    required this.enquiryData,
     required this.organizationId,
     this.isSalesman = false,
   });
@@ -30,13 +27,13 @@ class EnquiryDetailScreen extends StatefulWidget {
 
 class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
   final TextEditingController _updateController = TextEditingController();
-  bool _isLoading = false;
+  bool _isAddingUpdate = false;
+  bool _isUpdatingStatus = false;
   String? _selectedStatus;
 
   @override
   void initState() {
     super.initState();
-    _selectedStatus = widget.enquiryData['status'] ?? 'pending';
   }
 
   Future<void> _addUpdate() async {
@@ -45,7 +42,7 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() => _isAddingUpdate = true);
 
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -56,7 +53,8 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
         enquiryId: widget.enquiryId,
         updateText: _updateController.text.trim(),
         updatedBy: user.uid,
-        updatedByName: userName, organizationId: widget.organizationId,
+        updatedByName: userName,
+        organizationId: widget.organizationId,
       );
 
       _updateController.clear();
@@ -70,22 +68,21 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
       _showError('Failed to add update: $e');
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() => _isAddingUpdate = false);
       }
     }
   }
 
-  Future<void> _updateStatus() async {
-    if (_selectedStatus == widget.enquiryData['status']) return;
+  Future<void> _updateStatus(String? newStatus) async {
+    if (_selectedStatus == newStatus || newStatus == null) return;
 
-    setState(() => _isLoading = true);
+    setState(() => _isUpdatingStatus = true);
 
     try {
-      await EnquiryService.updateEnquiryStatus(widget.organizationId, widget.enquiryId, _selectedStatus!);
+      await EnquiryService.updateEnquiryStatus(widget.organizationId, widget.enquiryId, newStatus);
 
-      // Update local state
       setState(() {
-        widget.enquiryData['status'] = _selectedStatus;
+        _selectedStatus = newStatus;
       });
 
       if (mounted) {
@@ -97,7 +94,7 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
       _showError('Failed to update status: $e');
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() => _isUpdatingStatus = false);
       }
     }
   }
@@ -130,9 +127,7 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
       appBar: AppBar(
         title: const Text('Enquiry Details'),
       ),
-      body: _isLoading
-          ? const LoadingIndicator(message: 'Processing...')
-          : Column(
+      body: Column(
         children: [
           Expanded(
             child: SingleChildScrollView(
@@ -156,38 +151,77 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
   }
 
   Widget _buildEnquiryInfo() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Enquiry Information',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            _buildInfoRow('Customer', widget.userData['name']),
-            _buildInfoRow('Mobile', widget.userData['mobileNumber']),
-            _buildInfoRow('Address', widget.userData['address']),
-            _buildInfoRow('Product', widget.enquiryData['product']),
-            _buildInfoRow('Description', widget.enquiryData['description']),
-            if (!widget.isSalesman)
-              _buildInfoRow('Assigned To', widget.enquiryData['assignedSalesmanName']),
-            _buildInfoRow('Status', StatusUtils.formatStatus(widget.enquiryData['status'])),
-            if (widget.enquiryData['createdAt'] != null)
-              _buildInfoRow(
-                'Created',
-                DateUtilHelper.formatDateTime(widget.enquiryData['createdAt']),
-              ),
-            if (widget.enquiryData['updatedAt'] != null)
-              _buildInfoRow(
-                'Last Updated',
-                DateUtilHelper.formatDateTime(widget.enquiryData['updatedAt']),
-              ),
-          ],
-        ),
-      ),
+    return StreamBuilder(
+        stream: FirestoreUtils.getEnquiriesCollection(widget.organizationId).doc(widget.enquiryId).snapshots(),
+        builder: (context, enquiryAsyncSnapshot){
+          if(!enquiryAsyncSnapshot.hasData){
+            return const Text("No Data Found");
+          }
+          if(enquiryAsyncSnapshot.hasError){
+            return Text("Error while Loading Data: ${enquiryAsyncSnapshot.error}");
+          }
+
+          final enquiryData = enquiryAsyncSnapshot.data!.data() as Map<String, dynamic>;
+
+          // Initialize _selectedStatus from the current enquiry data
+          if (_selectedStatus == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              setState(() {
+                _selectedStatus = enquiryData['status'] ?? 'pending';
+              });
+            });
+          }
+
+          final customerFuture = FirestoreUtils.getCustomersCollection(widget.organizationId).doc(enquiryData["customerId"]).get();
+
+          return FutureBuilder(
+              future: customerFuture,
+              builder: (context, customerAsyncSnapshot) {
+                if(customerAsyncSnapshot.connectionState == ConnectionState.waiting){
+                  return const LoadingIndicator();
+                }
+
+                if(!customerAsyncSnapshot.hasData || customerAsyncSnapshot.hasError){
+                  return Text("Unable to Load Data: ${customerAsyncSnapshot.error}");
+                }
+
+                final customerData = customerAsyncSnapshot.data!.data() as Map<String, dynamic>;
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Enquiry Information',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildInfoRow('Customer', customerData['name']),
+                        _buildInfoRow('Mobile', customerData['mobileNumber']),
+                        _buildInfoRow('Address', customerData['address']),
+                        _buildInfoRow('Product', enquiryData['product']),
+                        _buildInfoRow('Description', enquiryData['description']),
+                        if (!widget.isSalesman)
+                          _buildInfoRow('Assigned To', enquiryData['assignedSalesmanName']),
+                        // _buildInfoRow('Status', StatusUtils.formatStatus(enquiryData['status'])),
+                        if (enquiryData['createdAt'] != null)
+                          _buildInfoRow(
+                            'Created',
+                            DateUtilHelper.formatDateTime(enquiryData['createdAt']),
+                          ),
+                        if (enquiryData['updatedAt'] != null)
+                          _buildInfoRow(
+                            'Last Updated',
+                            DateUtilHelper.formatDateTime(enquiryData['updatedAt']),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+          );
+        }
     );
   }
 
@@ -224,31 +258,48 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _selectedStatus,
-              decoration: const InputDecoration(
-                labelText: 'Status',
-                border: OutlineInputBorder(),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
-                DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+            Stack(
+              children: [
+                DropdownButtonFormField<String>(
+                  value: _selectedStatus,
+                  decoration: const InputDecoration(
+                    labelText: 'Status',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                    DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
+                    DropdownMenuItem(value: 'completed', child: Text('Completed')),
+                    DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+                  ],
+                  onChanged: _isUpdatingStatus ? null : (value) {
+                    _updateStatus(value);
+                  },
+                ),
+                if (_isUpdatingStatus)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withOpacity(0.1),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
-              onChanged: (value) {
-                setState(() => _selectedStatus = value);
-                _updateStatus();
-              },
             ),
             const SizedBox(height: 8),
-            Text(
-              'Current: ${StatusUtils.formatStatus(widget.enquiryData['status'])}',
-              style: TextStyle(
-                color: StatusUtils.getStatusColor(widget.enquiryData['status']),
-                fontWeight: FontWeight.bold,
+            if (_selectedStatus != null)
+              Text(
+                'Current: ${StatusUtils.formatStatus(_selectedStatus!)}',
+                style: TextStyle(
+                  color: StatusUtils.getStatusColor(_selectedStatus!),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -391,6 +442,11 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
               hintText: 'Describe your visit, customer feedback, next actions...',
               border: OutlineInputBorder(),
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              hintStyle: TextStyle(
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w300,
+                color: Colors.grey,
+              ),
             ),
             maxLines: 5,
             autofocus: true,
@@ -400,19 +456,25 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: _hideUpdateDialog,
+                  onPressed: _isAddingUpdate ? null : _hideUpdateDialog,
                   child: const Text('Cancel'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _addUpdate,
+                  onPressed: _isAddingUpdate ? null : _addUpdate,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('Add Update'),
+                  child: _isAddingUpdate
+                      ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                      : const Text('Add Update'),
                 ),
               ),
             ],

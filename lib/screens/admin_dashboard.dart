@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:leadassist/services/fcm_service.dart';
 import '../services/enquiry_service.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
@@ -94,7 +93,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       _showLogoutLoadingDialog(context);
 
       try {
-        await FCMService.removeCurrentDevice();
+        // await FCMService.removeCurrentDevice();
         await AuthService.logout();
 
         // Close the loading dialog
