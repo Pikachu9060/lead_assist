@@ -1,19 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:leadassist/core/config.dart';
+import '../shared/utils/error_utils.dart';
+import '../shared/utils/firestore_utils.dart';
 
 class UpdateService {
-  static final CollectionReference updatesCollection =
-  FirebaseFirestore.instance.collection(AppConfig.updatesCollection);
+  static CollectionReference get updatesCollection => FirestoreUtils.updatesCollection;
 
   static Future<void> addUpdate(Map<String, dynamic> updateData) async {
     try {
-      await updatesCollection.add({
-        ...updateData,
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
+      await updatesCollection.add(
+          FirestoreUtils.addTimestamps({
+            ...updateData,
+            'isRead': false,
+          }, includeUpdated: false)
+      );
     } catch (e) {
-      throw 'Failed to add update: $e';
+      throw ErrorUtils.handleGenericError('add update', e);
     }
   }
 
@@ -33,9 +34,11 @@ class UpdateService {
   }
 
   static Future<void> markUpdateAsRead(String updateId) async {
-    await updatesCollection.doc(updateId).update({
-      'isRead': true,
-      'readAt': FieldValue.serverTimestamp(),
-    });
+    await updatesCollection.doc(updateId).update(
+        FirestoreUtils.updateTimestamp({
+          'isRead': true,
+          'readAt': FieldValue.serverTimestamp(),
+        })
+    );
   }
 }

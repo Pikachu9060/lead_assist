@@ -1,17 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:leadassist/services/customer_service.dart';
-
 import '../services/enquiry_service.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/status_icon.dart';
+import '../shared/utils/date_utils.dart';
 import 'enquiry_detail_screen.dart';
 
 class ManageEnquiriesScreen extends StatefulWidget {
   final String organizationId;
   final String? salesmanId;
+  final String? initialStatus;
 
-  const ManageEnquiriesScreen({super.key, required this.organizationId, this.salesmanId});
+  const ManageEnquiriesScreen({
+    super.key,
+    required this.organizationId,
+    this.salesmanId,
+    this.initialStatus,
+  });
 
   @override
   State<ManageEnquiriesScreen> createState() => _ManageEnquiriesScreenState();
@@ -20,16 +26,106 @@ class ManageEnquiriesScreen extends StatefulWidget {
 class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
   final List<String> _selectedStatuses = ['all'];
   final List<String> _allStatuses = ['all', 'pending', 'in_progress', 'completed', 'cancelled'];
-  String _searchType = 'customer';
   String _searchQuery = '';
   bool _showFilters = true;
+  bool _isSearchExpanded = false; // Controls app bar search expansion
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.initialStatus != null) {
+      _selectedStatuses.clear();
+      _selectedStatuses.add(widget.initialStatus!);
+      _showFilters = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Enquiries'),
-        actions: [
+      appBar: _buildAppBar(),
+      body: Column(
+        children: [
+          if (_showFilters) _buildFilterSection(),
+          if (!_showFilters && widget.initialStatus != null) _buildStatusHeader(),
+          Expanded(
+            child: _EnquiriesList(
+              salesmanId: widget.salesmanId,
+              selectedStatuses: _getEffectiveStatuses(),
+              searchQuery: _searchQuery,
+              organizationId: widget.organizationId,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      title: _isSearchExpanded ? _buildSearchField() : _buildAppBarTitle(),
+      actions: _buildAppBarActions(),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+
+      controller: _searchController,
+      autofocus: true,
+      decoration: InputDecoration(
+        hintText: 'Search in product, description...',
+        border: InputBorder.none,
+        hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+      ),
+      // style: const TextStyle(color: Colors.white),
+      onChanged: (value) {
+        setState(() {
+          _searchQuery = value.trim();
+        });
+      },
+      onSubmitted: (value) {
+        // Keep search expanded after submission
+        setState(() {
+          _searchQuery = value.trim();
+        });
+      },
+    );
+  }
+
+  List<Widget> _buildAppBarActions() {
+    if (_isSearchExpanded) {
+      return [
+        IconButton(
+          icon: const Icon(Icons.clear),
+          onPressed: () {
+            setState(() {
+              _isSearchExpanded = false;
+              _searchQuery = '';
+              _searchController.clear();
+            });
+          },
+        ),
+      ];
+    } else {
+      return [
+        IconButton(
+          icon: const Icon(Icons.search),
+          onPressed: () {
+            setState(() {
+              _isSearchExpanded = true;
+            });
+          },
+        ),
+        if (_showFilters)
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: () {
@@ -38,27 +134,56 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
               });
             },
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (_showFilters) _buildFilterSection(),
-          Expanded(
-            child: _EnquiriesList(
-              salesmanId: widget.salesmanId,
-              key: ValueKey('enquiries_${_selectedStatuses.join('_')}_$_searchType$_searchQuery'),
-              selectedStatuses: _selectedStatuses.contains('all')
-                  ? ['pending', 'in_progress', 'completed', 'cancelled']
-                  : _selectedStatuses,
-              searchType: _searchType,
-              searchQuery: _searchQuery,
-              organizationId: widget.organizationId,
-            ),
-          ),
-        ],
-      ),
+      ];
+    }
+  }
 
+  List<String> _getEffectiveStatuses() {
+    if (widget.initialStatus != null) {
+      return widget.initialStatus == 'all'
+          ? ['pending', 'in_progress', 'completed', 'cancelled']
+          : [widget.initialStatus!];
+    }
+    return _selectedStatuses.contains('all')
+        ? ['pending', 'in_progress', 'completed', 'cancelled']
+        : _selectedStatuses;
+  }
+
+  Widget _buildAppBarTitle() {
+    if (widget.initialStatus != null && widget.initialStatus != 'all') {
+      return Text(
+        '${_formatStatus(widget.initialStatus!)} Enquiries',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+    return Text(
+      widget.salesmanId != null ? 'My Assigned Enquiries' : 'Manage Enquiries',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
+  }
+
+  Widget _buildStatusHeader() {
+    if (widget.initialStatus != null && widget.initialStatus != 'all') {
+      final status = widget.initialStatus!;
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        color: _getStatusColor(status).withOpacity(0.1),
+        child: Text(
+          'Showing ${_formatStatus(status)} Enquiries',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: _getStatusColor(status),
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }
+    return const SizedBox();
   }
 
   Widget _buildFilterSection() {
@@ -68,41 +193,7 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Search Row
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search enquiries...',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                DropdownButton<String>(
-                  value: _searchType,
-                  items: [
-                    DropdownMenuItem(value: 'customer', child: Text('Customer')),
-                    if(widget.salesmanId != null)DropdownMenuItem(value: 'salesman', child: Text('Salesman')),
-                    DropdownMenuItem(value: 'enquiry', child: Text('Product')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _searchType = value!;
-                    });
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Status Filters - Clickable Text
+            // Status Filters
             Row(
               children: [
                 GestureDetector(
@@ -121,12 +212,46 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _getCurrentStatusText(),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _formatStatus(String status) {
+    return status.replaceAll('_', ' ').toUpperCase();
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'pending': return Colors.blue;
+      case 'in_progress': return Colors.orange;
+      case 'completed': return Colors.green;
+      case 'cancelled': return Colors.red;
+      default: return Colors.grey;
+    }
+  }
+
+  String _getCurrentStatusText() {
+    if (_selectedStatuses.contains('all') || _selectedStatuses.length == 4) {
+      return 'All Statuses';
+    } else {
+      return _selectedStatuses.map((status) => status.replaceAll('_', ' ')).join(', ');
+    }
   }
 
   void _showStatusSelectionDialog() {
@@ -150,6 +275,8 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
                         status == 'all'
                             ? 'All Statuses'
                             : status.replaceAll('_', ' ').toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       value: isSelected,
                       onChanged: (bool? value) {
@@ -179,9 +306,7 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
+                  onPressed: () => Navigator.pop(context),
                   child: const Text('Cancel'),
                 ),
                 ElevatedButton(
@@ -203,21 +328,17 @@ class _ManageEnquiriesScreenState extends State<ManageEnquiriesScreen> {
   }
 }
 
-// Update _EnquiriesList to be stateful and maintain its own stream
 class _EnquiriesList extends StatefulWidget {
   final List<String> selectedStatuses;
-  final String searchType;
   final String searchQuery;
   final String organizationId;
   final String? salesmanId;
 
   const _EnquiriesList({
     required this.selectedStatuses,
-    required this.searchType,
     required this.searchQuery,
     required this.organizationId,
     this.salesmanId,
-    super.key,
   });
 
   @override
@@ -230,29 +351,25 @@ class __EnquiriesListState extends State<_EnquiriesList> {
   @override
   void initState() {
     super.initState();
-    _enquiriesStream = EnquiryService.searchEnquiries(
-      salesmanId: widget.salesmanId,
-      searchType: widget.searchType,
-      query: widget.searchQuery,
-      statuses: widget.selectedStatuses,
-      organizationId: widget.organizationId,
-    );
+    _updateStream();
   }
 
   @override
   void didUpdateWidget(_EnquiriesList oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedStatuses.join() != widget.selectedStatuses.join() ||
-        oldWidget.searchType != widget.searchType ||
-        oldWidget.searchQuery != widget.searchQuery) {
-      _enquiriesStream = EnquiryService.searchEnquiries(
-        salesmanId: widget.salesmanId,
-        searchType: widget.searchType,
-        query: widget.searchQuery,
-        statuses: widget.selectedStatuses,
-        organizationId: widget.organizationId,
-      );
+    if (oldWidget.selectedStatuses.join() != widget.selectedStatuses.join()) {
+      _updateStream();
     }
+  }
+
+  void _updateStream() {
+    _enquiriesStream = EnquiryService.searchEnquiries(
+      salesmanId: widget.salesmanId,
+      searchType: 'all', // Always get all data for client-side search
+      query: '', // Empty query to get all data
+      statuses: widget.selectedStatuses,
+      organizationId: widget.organizationId,
+    );
   }
 
   @override
@@ -263,38 +380,55 @@ class __EnquiriesListState extends State<_EnquiriesList> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const LoadingIndicator();
         }
+
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(
+            child: Text(
+              'Error: ${snapshot.error}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          );
         }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+
+        if (!snapshot.hasData) {
           return const EmptyStateWidget(
-            message: 'No enquiries found\nTry adjusting your filters',
+            message: 'No data available',
+            icon: Icons.error_outline,
+          );
+        }
+
+        // Get all enquiries from stream
+        List<QueryDocumentSnapshot> allEnquiries = snapshot.data!.docs;
+
+        // Apply client-side search filtering
+        List<QueryDocumentSnapshot> filteredEnquiries = _applySearchFilter(allEnquiries);
+
+        if (filteredEnquiries.isEmpty) {
+          return EmptyStateWidget(
+            message: widget.searchQuery.isEmpty
+                ? 'No enquiries found\nTry adjusting your filters'
+                : 'No results for "${widget.searchQuery}"\nTry different search terms',
             icon: Icons.search_off,
           );
         }
 
-        final enquiries = snapshot.data!.docs;
-
         return ListView.builder(
-          itemCount: enquiries.length,
+          itemCount: filteredEnquiries.length,
           itemBuilder: (context, index) {
-            final enquiry = enquiries[index];
+            final enquiry = filteredEnquiries[index];
             final data = enquiry.data() as Map<String, dynamic>;
 
-            return FutureBuilder<DocumentSnapshot>(
-              future: CustomerService.getCustomerById(widget.organizationId, data["customerId"]),
-              builder: (context, customerSnapshot) {
-                if (customerSnapshot.connectionState == ConnectionState.waiting) {
-                  return _buildEnquiryCardWithLoading(data, enquiry.id);
-                }
-
-                if (customerSnapshot.hasError || !customerSnapshot.hasData) {
-                  return _buildEnquiryCard(data, enquiry.id, null);
-                }
-
-                final customerData = customerSnapshot.data!.data() as Map<String, dynamic>?;
-                return _buildEnquiryCard(data, enquiry.id, customerData);
-              },
+            return _EnquiryCard(
+              enquiryId: enquiry.id,
+              data: data,
+              searchQuery: widget.searchQuery, // Pass search query for highlighting
+              onTap: () => _navigateToEnquiryDetail(
+                context,
+                enquiry.id,
+                data,
+                widget.organizationId,
+              ),
             );
           },
         );
@@ -302,48 +436,28 @@ class __EnquiriesListState extends State<_EnquiriesList> {
     );
   }
 
-  Widget _buildEnquiryCardWithLoading(Map<String, dynamic> data, String enquiryId) {
-    return Opacity(
-      opacity: 0.7,
-      child: Card(
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: ListTile(
-          leading: _buildStatusIcon(data['status']),
-          title: Text(
-            data['customerName'] ?? 'Loading...',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Product: ${data['product'] ?? 'Not specified'}'),
-              const LinearProgressIndicator(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  List<QueryDocumentSnapshot> _applySearchFilter(List<QueryDocumentSnapshot> enquiries) {
+    if (widget.searchQuery.isEmpty) {
+      return enquiries; // Return all if no search query
+    }
 
-  Widget _buildEnquiryCard(Map<String, dynamic> data, String enquiryId, Map<String, dynamic>? customerData) {
-    // Use customer data if available, otherwise fall back to enquiry data
-    final String customerName = customerData?['name'] ??
-        customerData?['customerName'] ??
-        data['customerName'] ??
-        'Unknown Customer';
+    final searchTerm = widget.searchQuery.toLowerCase();
 
-    return _EnquiryCard(
-      enquiryId: enquiryId,
-      data: data,
-      customerName: customerName, // Pass the resolved customer name
-      onTap: () => _navigateToEnquiryDetail(
-          context,
-          enquiryId,
-          data,
-          widget.organizationId,
-          customerData
-      ),
-    );
+    return enquiries.where((enquiry) {
+      final data = enquiry.data() as Map<String, dynamic>;
+
+      // Search across multiple fields
+      final product = data['product']?.toString().toLowerCase() ?? '';
+      final description = data['description']?.toString().toLowerCase() ?? '';
+      final customerName = data['customerName']?.toString().toLowerCase() ?? '';
+      final salesmanName = data['assignedSalesmanName']?.toString().toLowerCase() ?? '';
+
+      // Search in all relevant fields
+      return product.contains(searchTerm) ||
+          description.contains(searchTerm) ||
+          customerName.contains(searchTerm) ||
+          salesmanName.contains(searchTerm);
+    }).toList();
   }
 
   void _navigateToEnquiryDetail(
@@ -351,77 +465,30 @@ class __EnquiriesListState extends State<_EnquiriesList> {
       String enquiryId,
       Map<String, dynamic> data,
       String organizationId,
-      Map<String, dynamic>? customerData,
-      ) async {
-    // If we don't have customer data, fetch it
-    Map<String, dynamic>? userData = customerData;
-    if (userData == null) {
-      final customerSnapshot = await CustomerService.getCustomerById(organizationId, data["customerId"]);
-      userData = customerSnapshot.data() as Map<String, dynamic>?;
-    }
-
+      ) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => EnquiryDetailScreen(
-          userData: userData ?? {}, // Provide empty map as fallback
           enquiryId: enquiryId,
-          enquiryData: data,
           organizationId: organizationId,
-          isSalesman: false,
+          isSalesman: widget.salesmanId != null,
         ),
-      ),
-    );
-  }
-
-  // Move the status icon method here since it's used in the loading state
-  Widget _buildStatusIcon(String status) {
-    IconData icon;
-    Color color;
-
-    switch (status) {
-      case 'completed':
-        icon = Icons.check_circle;
-        color = Colors.green;
-        break;
-      case 'in_progress':
-        icon = Icons.refresh;
-        color = Colors.orange;
-        break;
-      case 'cancelled':
-        icon = Icons.cancel;
-        color = Colors.red;
-        break;
-      default:
-        icon = Icons.pending;
-        color = Colors.blue;
-    }
-
-    return Tooltip(
-      message: status.replaceAll('_', ' ').toUpperCase(),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: color, size: 20),
       ),
     );
   }
 }
 
-// _EnquiryCard remains the same...
 class _EnquiryCard extends StatelessWidget {
   final String enquiryId;
   final Map<String, dynamic> data;
-  final String customerName; // Add this parameter
+  final String searchQuery;
   final VoidCallback onTap;
 
   const _EnquiryCard({
     required this.enquiryId,
     required this.data,
-    required this.customerName, // Required parameter
+    required this.searchQuery,
     required this.onTap,
   });
 
@@ -430,24 +497,43 @@ class _EnquiryCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ListTile(
-        leading: _buildStatusIcon(data['status']),
-        title: Text(
-          customerName, // Use the resolved customer name
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        leading: StatusIcon(status: data['status']),
+        title: _buildHighlightedText(
+          data['product'] ?? 'No Product',
+          searchQuery,
+          isTitle: true,
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Product: ${data['product'] ?? 'Not specified'}'),
-            if (data['assignedSalesmanName'] != null)
-              Text('Salesman: ${data['assignedSalesmanName']}'),
+            _buildHighlightedText(
+              data['description'] ?? 'No description',
+              searchQuery,
+            ),
+            const SizedBox(height: 4),
+            // if (data['customerName'] != null)
+            //   _buildHighlightedText(
+            //     'Customer: ${data['customerName']}',
+            //     searchQuery,
+            //   ),
+            // if (data['assignedSalesmanName'] != null)
+            //   _buildHighlightedText(
+            //     'Salesman: ${data['assignedSalesmanName']}',
+            //     searchQuery,
+            //   ),
+            // const SizedBox(height: 4),
             Row(
               children: [
                 Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600),
                 const SizedBox(width: 4),
                 Text(
-                  _formatDate(data['createdAt']),
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  DateUtilHelper.formatDate(data['createdAt']),
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -459,53 +545,70 @@ class _EnquiryCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusIcon(String status) {
-    IconData icon;
-    Color color;
-    String tooltip;
-
-    switch (status) {
-      case 'completed':
-        icon = Icons.check_circle;
-        color = Colors.green;
-        tooltip = 'Completed';
-        break;
-      case 'in_progress':
-        icon = Icons.refresh;
-        color = Colors.orange;
-        tooltip = 'In Progress';
-        break;
-      case 'cancelled':
-        icon = Icons.cancel;
-        color = Colors.red;
-        tooltip = 'Cancelled';
-        break;
-      default:
-        icon = Icons.pending;
-        color = Colors.blue;
-        tooltip = 'Pending';
-    }
-
-    return Tooltip(
-      message: tooltip,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          shape: BoxShape.circle,
+  Widget _buildHighlightedText(String text, String query, {bool isTitle = false}) {
+    if (query.isEmpty) {
+      return Text(
+        text,
+        maxLines: 1,
+        overflow: isTitle ? TextOverflow.ellipsis : TextOverflow.fade,
+        style: TextStyle(
+          fontWeight: isTitle ? FontWeight.bold : FontWeight.normal,
+          color: Colors.grey[600],
+          fontSize: isTitle ? null : 12,
         ),
-        child: Icon(icon, color: color, size: 20),
-      ),
-    );
-  }
-
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown date';
-    try {
-      final date = timestamp.toDate();
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return 'Invalid date';
+      );
     }
+
+    final textLower = text.toLowerCase();
+    final queryLower = query.toLowerCase();
+    final matches = <TextSpan>[];
+    int start = 0;
+
+    while (start < textLower.length) {
+      final matchIndex = textLower.indexOf(queryLower, start);
+      if (matchIndex == -1) {
+        // No more matches
+        matches.add(TextSpan(
+          text: text.substring(start),
+          style: TextStyle(
+            fontWeight: isTitle ? FontWeight.bold : FontWeight.normal,
+            color: Colors.grey[600],
+            fontSize: isTitle ? null : 12,
+          ),
+        ));
+        break;
+      }
+
+      // Add text before match
+      if (matchIndex > start) {
+        matches.add(TextSpan(
+          text: text.substring(start, matchIndex),
+          style: TextStyle(
+            fontWeight: isTitle ? FontWeight.bold : FontWeight.normal,
+            color: Colors.grey[600],
+            fontSize: isTitle ? null : 12,
+          ),
+        ));
+      }
+
+      // Add matched text with highlight
+      matches.add(TextSpan(
+        text: text.substring(matchIndex, matchIndex + query.length),
+        style: TextStyle(
+          fontWeight: isTitle ? FontWeight.bold : FontWeight.normal,
+          color: Colors.blue.shade700,
+          backgroundColor: Colors.blue.shade100,
+          fontSize: isTitle ? null : 12,
+        ),
+      ));
+
+      start = matchIndex + query.length;
+    }
+
+    return RichText(
+      maxLines: 1,
+      overflow: isTitle ? TextOverflow.ellipsis : TextOverflow.fade,
+      text: TextSpan(children: matches),
+    );
   }
 }

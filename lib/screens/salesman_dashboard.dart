@@ -1,14 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/customer_service.dart';
 import '../services/enquiry_service.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
-import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/error_widget.dart';
-import 'enquiry_detail_screen.dart';
+import 'manage_enquiries_screen.dart';
 import '../core/config.dart';
 
 class SalesmanDashboard extends StatefulWidget {
@@ -25,7 +23,6 @@ class SalesmanDashboard extends StatefulWidget {
 
 class _SalesmanDashboardState extends State<SalesmanDashboard> {
   final List<String> _selectedStatuses = ['all'];
-  bool _showFilters = true;
 
   Future<String?> _loadOrganizationName() async {
     final orgDoc = await FirebaseFirestore.instance
@@ -70,14 +67,6 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              setState(() {
-                _showFilters = !_showFilters;
-              });
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _logout(context),
             tooltip: 'Logout',
@@ -107,7 +96,6 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
                   userEmail: user?.email,
                   userRegion: userRegion,
                   selectedStatuses: _selectedStatuses,
-                  showFilters: _showFilters,
                   onStatusFilterChanged: (List<String> newStatuses) {
                     setState(() {
                       _selectedStatuses.clear();
@@ -131,7 +119,6 @@ class _DashboardContent extends StatelessWidget {
   final String? userEmail;
   final String userRegion;
   final List<String> selectedStatuses;
-  final bool showFilters;
   final Function(List<String>) onStatusFilterChanged;
 
   const _DashboardContent({
@@ -141,7 +128,6 @@ class _DashboardContent extends StatelessWidget {
     this.userEmail,
     required this.userRegion,
     required this.selectedStatuses,
-    required this.showFilters,
     required this.onStatusFilterChanged,
   });
 
@@ -149,174 +135,145 @@ class _DashboardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _WelcomeHeader(
-            userName: userName,
-            userEmail: userEmail,
-            userRegion: userRegion,
-          ),
-          const SizedBox(height: 24),
+      child: ClipRect(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _WelcomeHeader(
+              userName: userName,
+              userEmail: userEmail,
+              userRegion: userRegion,
+            ),
+            const SizedBox(height: 24),
 
-          // Stats Section - Always shows all enquiries (no filtering)
-          const Text(
-            'My Performance',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
+            // Stats Section
+            const Text(
+              'My Performance',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
 
-          // Stats Cards - Always shows all enquiries
-          _SalesmanStats(
-            salesmanId: salesmanId,
-            organizationId: organizationId,
-          ),
-          const SizedBox(height: 24),
-
-          const Text(
-            'My Assigned Enquiries',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-
-          // Filter Section - Only status filter
-          if (showFilters) _buildFilterSection(context),
-          const SizedBox(height: 16),
-
-          Expanded(
-            child: _EnquiriesList(
-              key: ValueKey('enquiries_${selectedStatuses.join('_')}'),
+            // Stats Cards - Clickable
+            _SalesmanStats(
               salesmanId: salesmanId,
               organizationId: organizationId,
-              selectedStatuses: selectedStatuses,
+              onStatusTap: (String status) => _navigateToManageEnquiriesWithFilter(context, status),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+            const SizedBox(height: 24),
 
-  Widget _buildFilterSection(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.all(0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // Status Filters - Clickable Text (Only filter option)
-            Row(
-              children: [
-                GestureDetector(
-                  onTap: () => _showStatusSelectionDialog(context),
-                  child: const Row(
-                    children: [
-                      Text(
-                        'Filter by Status',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue,
-                        ),
-                      ),
-                      SizedBox(width: 4),
-                      Icon(Icons.arrow_drop_down, size: 16, color: Colors.blue),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Show current selected statuses
-                Text(
-                  _getCurrentStatusText(),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
+            // Quick Actions
+            // _buildQuickActions(context),
+            // const SizedBox(height: 24),
+
+            // Recent Enquiries
+            // const Text(
+            //   'Recent Enquiries',
+            //   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            // ),
+            // const SizedBox(height: 16),
+            //
+            // Expanded(
+            //   child: _EnquiriesList(
+            //     salesmanId: salesmanId,
+            //     organizationId: organizationId,
+            //     selectedStatuses: selectedStatuses,
+            //   ),
+            // ),
           ],
         ),
       ),
     );
   }
 
-  String _getCurrentStatusText() {
-    if (selectedStatuses.contains('all') || selectedStatuses.length == 4) {
-      return 'All Statuses';
-    } else {
-      return selectedStatuses.map((status) => status.replaceAll('_', ' ')).join(', ');
-    }
-  }
+  // Widget _buildQuickActions(BuildContext context) {
+  //   return Card(
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(16.0),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           const Text(
+  //             'Quick Actions',
+  //             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  //           ),
+  //           const SizedBox(height: 12),
+  //           Row(
+  //             children: [
+  //               Expanded(
+  //                 child: _buildActionButton(
+  //                   icon: Icons.assignment,
+  //                   label: 'All Enquiries',
+  //                   onTap: () => _navigateToManageEnquiriesWithFilter(context, 'all'),
+  //                 ),
+  //               ),
+  //               const SizedBox(width: 12),
+  //               Expanded(
+  //                 child: _buildActionButton(
+  //                   icon: Icons.filter_list,
+  //                   label: 'With Filters',
+  //                   onTap: () => _navigateToManageEnquiries(context),
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
-  void _showStatusSelectionDialog(BuildContext context) {
-    List<String> tempSelectedStatuses = List.from(selectedStatuses);
-    final List<String> allStatuses = ['all', 'pending', 'in_progress', 'completed', 'cancelled'];
+  // Widget _buildActionButton({
+  //   required IconData icon,
+  //   required String label,
+  //   required VoidCallback onTap,
+  // }) {
+  //   return InkWell(
+  //     onTap: onTap,
+  //     child: Container(
+  //       padding: const EdgeInsets.all(12),
+  //       decoration: BoxDecoration(
+  //         color: Colors.blue.shade50,
+  //         borderRadius: BorderRadius.circular(8),
+  //       ),
+  //       child: Column(
+  //         children: [
+  //           Icon(icon, color: Colors.blue, size: 24),
+  //           const SizedBox(height: 4),
+  //           Text(
+  //             label,
+  //             textAlign: TextAlign.center,
+  //             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Select Statuses'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: allStatuses.map((status) {
-                    final isSelected = tempSelectedStatuses.contains(status);
-                    return CheckboxListTile(
-                      title: Text(
-                        status == 'all'
-                            ? 'All Statuses'
-                            : status.replaceAll('_', ' ').toUpperCase(),
-                      ),
-                      value: isSelected,
-                      onChanged: (bool? value) {
-                        setStateDialog(() {
-                          if (status == 'all') {
-                            tempSelectedStatuses.clear();
-                            if (value == true) {
-                              tempSelectedStatuses.add('all');
-                            }
-                          } else {
-                            tempSelectedStatuses.remove('all');
-                            if (value == true) {
-                              tempSelectedStatuses.add(status);
-                            } else {
-                              tempSelectedStatuses.remove(status);
-                            }
-
-                            if (tempSelectedStatuses.isEmpty) {
-                              tempSelectedStatuses.add('all');
-                            }
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    onStatusFilterChanged(tempSelectedStatuses);
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Apply'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+  void _navigateToManageEnquiriesWithFilter(BuildContext context, String status) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ManageEnquiriesScreen(
+          organizationId: organizationId,
+          salesmanId: salesmanId,
+          initialStatus: status, // Pass single status
+        ),
+      ),
     );
   }
+
+  // void _navigateToManageEnquiries(BuildContext context) {
+  //   Navigator.push(
+  //     context,
+  //     MaterialPageRoute(
+  //       builder: (context) => ManageEnquiriesScreen(
+  //         organizationId: organizationId,
+  //         salesmanId: salesmanId,
+  //       ),
+  //     ),
+  //   );
+  // }
 }
 
 class _WelcomeHeader extends StatelessWidget {
@@ -382,10 +339,12 @@ class _WelcomeHeader extends StatelessWidget {
 class _SalesmanStats extends StatelessWidget {
   final String salesmanId;
   final String organizationId;
+  final Function(String status)? onStatusTap;
 
   const _SalesmanStats({
     required this.salesmanId,
     required this.organizationId,
+    this.onStatusTap,
   });
 
   @override
@@ -407,43 +366,110 @@ class _SalesmanStats extends StatelessWidget {
           final data = doc.data() as Map<String, dynamic>;
           return data['status'] == 'completed';
         }).length;
+
         final pendingEnquiries = enquiries.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          return data['status'] == 'pending' || data['status'] == 'in_progress';
+          return data['status'] == 'pending';
         }).length;
 
-        return Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                title: 'Total',
-                count: totalEnquiries,
-                color: Colors.blue,
-                icon: Icons.assignment,
+        final inProgressEnquiries = enquiries.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['status'] == 'in_progress';
+        }).length;
+
+        final cancelledEnquiries = enquiries.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return data['status'] == 'cancelled';
+        }).length;
+
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Total Card
+              Expanded(
+                flex: 2,
+                child: _buildStatCard(
+                  title: 'Total',
+                  count: totalEnquiries,
+                  color: Colors.purpleAccent,
+                  icon: Icons.assignment,
+                  onTap: () => _handleCardTap(context, 'all'),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                title: 'Completed',
-                count: completedEnquiries,
-                color: Colors.green,
-                icon: Icons.check_circle,
+              const SizedBox(width: 12),
+              // Status Cards
+              Expanded(
+                flex: 3,
+                child: Column(
+                  children: [
+                    // First row
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              title: 'Pending',
+                              count: pendingEnquiries,
+                              color: Colors.blue,
+                              icon: Icons.pending,
+                              onTap: () => _handleCardTap(context, 'pending'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildStatCard(
+                              title: 'In Progress',
+                              count: inProgressEnquiries,
+                              color: Colors.orange,
+                              icon: Icons.autorenew,
+                              onTap: () => _handleCardTap(context, 'in_progress'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Second row
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              title: 'Completed',
+                              count: completedEnquiries,
+                              color: Colors.green,
+                              icon: Icons.check_circle,
+                              onTap: () => _handleCardTap(context, 'completed'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _buildStatCard(
+                              title: 'Cancelled',
+                              count: cancelledEnquiries,
+                              color: Colors.red,
+                              icon: Icons.cancel,
+                              onTap: () => _handleCardTap(context, 'cancelled'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                title: 'Pending',
-                count: pendingEnquiries,
-                color: Colors.orange,
-                icon: Icons.pending,
-              ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
+  }
+
+  void _handleCardTap(BuildContext context, String status) {
+    if (onStatusTap != null) {
+      onStatusTap!(status);
+    }
   }
 
   Widget _buildStatCard({
@@ -451,305 +477,247 @@ class _SalesmanStats extends StatelessWidget {
     required int count,
     required Color color,
     required IconData icon,
+    required VoidCallback onTap,
   }) {
-    return Card(
-      elevation: 3,
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              color.withOpacity(0.1),
-              color.withOpacity(0.05),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 20, color: color),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                count.toString(),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EnquiriesList extends StatefulWidget {
-  final String salesmanId;
-  final String organizationId;
-  final List<String> selectedStatuses;
-
-  const _EnquiriesList({
-    required this.salesmanId,
-    required this.organizationId,
-    required this.selectedStatuses,
-    super.key,
-  });
-
-  @override
-  State<_EnquiriesList> createState() => __EnquiriesListState();
-}
-
-class __EnquiriesListState extends State<_EnquiriesList> {
-  late Stream<QuerySnapshot> _enquiriesStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _updateStream();
-  }
-
-  @override
-  void didUpdateWidget(_EnquiriesList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Only update the stream if the status filter actually changed
-    if (oldWidget.selectedStatuses.join() != widget.selectedStatuses.join()) {
-      _updateStream();
-    }
-  }
-
-  void _updateStream() {
-    final effectiveStatuses = widget.selectedStatuses.contains('all')
-        ? ['pending', 'in_progress', 'completed', 'cancelled']
-        : widget.selectedStatuses;
-
-    _enquiriesStream = EnquiryService.searchEnquiries(
-      searchType: 'customer',
-      query: '',
-      statuses: effectiveStatuses,
-      organizationId: widget.organizationId,
-      salesmanId: widget.salesmanId,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _enquiriesStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const LoadingIndicator();
-        }
-
-        if (snapshot.hasError) {
-          return CustomErrorWidget(
-            message: 'Failed to load enquiries: ${snapshot.error}',
-            onRetry: () {},
-          );
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const EmptyStateWidget(
-            message: 'No enquiries assigned to you yet',
-            icon: Icons.assignment,
-          );
-        }
-
-        final enquiries = snapshot.data!.docs;
-
-        return ListView.separated(
-          itemCount: enquiries.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final enquiry = enquiries[index];
-            final data = enquiry.data() as Map<String, dynamic>;
-
-            return _EnquiryCard(
-              enquiryId: enquiry.id,
-              data: data,
-              onTap: () => _navigateToEnquiryDetail(context, enquiry.id, data, widget.organizationId),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _navigateToEnquiryDetail(BuildContext context, String enquiryId, Map<String, dynamic> data, String organizationId) async{
-    final userData = await CustomerService.getCustomerById(organizationId, data["customerId"]);
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EnquiryDetailScreen(
-          userData: userData.data() as Map<String, dynamic>,
-          enquiryId: enquiryId,
-          enquiryData: data,
-          organizationId: organizationId,
-          isSalesman: true,
-        ),
-      ),
-    );
-  }
-}
-
-class _EnquiryCard extends StatelessWidget {
-  final String enquiryId;
-  final Map<String, dynamic> data;
-  final VoidCallback onTap;
-
-  const _EnquiryCard({
-    required this.enquiryId,
-    required this.data,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      child: ListTile(
-        leading: _buildStatusIcon(data['status']),
-        title: Text(
-          data['customerName'] ?? 'Unknown Customer',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              data['product'] ?? 'No product specified',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(data['status']).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _getStatusColor(data['status']).withOpacity(0.3),
-                    ),
-                  ),
-                  child: Text(
-                    _formatStatus(data['status']),
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: _getStatusColor(data['status']),
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                if (data['createdAt'] != null)
-                  Text(
-                    _formatDate(data['createdAt']),
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 10,
-                    ),
-                  ),
+    return InkWell(
+      onTap: onTap,
+      child: Card(
+        elevation: 3,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                color.withOpacity(0.1),
+                color.withOpacity(0.05),
               ],
             ),
-          ],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 20, color: color),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  count.toString(),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Icon(Icons.arrow_circle_right_outlined,color: color)
+              ],
+            ),
+          ),
         ),
-        trailing: Icon(
-          Icons.chevron_right,
-          color: Colors.grey.shade400,
-        ),
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
     );
-  }
-
-  Widget _buildStatusIcon(String status) {
-    IconData icon;
-    Color color = _getStatusColor(status);
-
-    switch (status) {
-      case 'completed':
-        icon = Icons.check_circle;
-        break;
-      case 'in_progress':
-        icon = Icons.refresh;
-        break;
-      case 'cancelled':
-        icon = Icons.cancel;
-        break;
-      default:
-        icon = Icons.pending;
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        shape: BoxShape.circle,
-      ),
-      child: Icon(icon, color: color, size: 20),
-    );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'completed':
-        return Colors.green;
-      case 'in_progress':
-        return Colors.orange;
-      case 'cancelled':
-        return Colors.red;
-      case 'pending':
-        return Colors.orange;
-      default:
-        return Colors.black;
-    }
-  }
-
-  String _formatStatus(String status) {
-    switch (status) {
-      case 'in_progress':
-        return 'In Progress';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return 'Pending';
-    }
-  }
-
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown date';
-    try {
-      final date = timestamp.toDate();
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return 'Invalid date';
-    }
   }
 }
+
+// ... Rest of the _EnquiriesList and _EnquiryCard classes remain the same as your original code
+
+// class _EnquiriesList extends StatefulWidget {
+//   final String salesmanId;
+//   final String organizationId;
+//   final List<String> selectedStatuses;
+//
+//   const _EnquiriesList({
+//     required this.salesmanId,
+//     required this.organizationId,
+//     required this.selectedStatuses,
+//   });
+//
+//   @override
+//   State<_EnquiriesList> createState() => __EnquiriesListState();
+// }
+//
+// class __EnquiriesListState extends State<_EnquiriesList> {
+//   late Stream<QuerySnapshot> _enquiriesStream;
+//
+//   @override
+//   void initState() {
+//     super.initState();
+//     _updateStream();
+//   }
+//
+//   @override
+//   void didUpdateWidget(_EnquiriesList oldWidget) {
+//     super.didUpdateWidget(oldWidget);
+//     // Only update the stream if the status filter actually changed
+//     if (oldWidget.selectedStatuses.join() != widget.selectedStatuses.join()) {
+//       _updateStream();
+//     }
+//   }
+//
+//   void _updateStream() {
+//     final effectiveStatuses = widget.selectedStatuses.contains('all')
+//         ? ['pending', 'in_progress', 'completed', 'cancelled']
+//         : widget.selectedStatuses;
+//
+//     _enquiriesStream = EnquiryService.searchEnquiries(
+//       searchType: 'customer',
+//       query: '',
+//       statuses: effectiveStatuses,
+//       organizationId: widget.organizationId,
+//       salesmanId: widget.salesmanId,
+//     );
+//   }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return StreamBuilder<QuerySnapshot>(
+//       stream: _enquiriesStream,
+//       builder: (context, snapshot) {
+//         if (snapshot.connectionState == ConnectionState.waiting) {
+//           return const LoadingIndicator();
+//         }
+//
+//         if (snapshot.hasError) {
+//           return CustomErrorWidget(
+//             message: 'Failed to load enquiries: ${snapshot.error}',
+//             onRetry: () {},
+//           );
+//         }
+//
+//         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+//           return const EmptyStateWidget(
+//             message: 'No enquiries assigned to you yet',
+//             icon: Icons.assignment,
+//           );
+//         }
+//
+//         final enquiries = snapshot.data!.docs;
+//
+//         return ListView.separated(
+//           itemCount: enquiries.length,
+//           separatorBuilder: (context, index) => const SizedBox(height: 8),
+//           itemBuilder: (context, index) {
+//             final enquiry = enquiries[index];
+//             final data = enquiry.data() as Map<String, dynamic>;
+//
+//             return _EnquiryCard(
+//               enquiryId: enquiry.id,
+//               data: data,
+//               onTap: () => _navigateToEnquiryDetail(context, enquiry.id, data, widget.organizationId),
+//             );
+//           },
+//         );
+//       },
+//     );
+//   }
+//
+//   void _navigateToEnquiryDetail(BuildContext context, String enquiryId, Map<String, dynamic> data, String organizationId) async{
+//     final userData = await CustomerService.getCustomerById(organizationId, data["customerId"]);
+//     Navigator.push(
+//       context,
+//       MaterialPageRoute(
+//         builder: (context) => EnquiryDetailScreen(
+//           userData: userData.data() as Map<String, dynamic>,
+//           enquiryId: enquiryId,
+//           enquiryData: data,
+//           organizationId: organizationId,
+//           isSalesman: true,
+//         ),
+//       ),
+//     );
+//   }
+// }
+//
+// class _EnquiryCard extends StatelessWidget {
+//   final String enquiryId;
+//   final Map<String, dynamic> data;
+//   final VoidCallback onTap;
+//
+//   const _EnquiryCard({
+//     required this.enquiryId,
+//     required this.data,
+//     required this.onTap,
+//   });
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Card(
+//       elevation: 2,
+//       child: ListTile(
+//         leading: StatusIcon(status: data['status']),
+//         title: Text(
+//           data['customerName'] ?? 'Unknown Customer',
+//           style: const TextStyle(fontWeight: FontWeight.bold),
+//           maxLines: 1,
+//           overflow: TextOverflow.ellipsis,
+//         ),
+//         subtitle: Column(
+//           crossAxisAlignment: CrossAxisAlignment.start,
+//           children: [
+//             Text(
+//               data['product'] ?? 'No product specified',
+//               maxLines: 1,
+//               overflow: TextOverflow.ellipsis,
+//             ),
+//             const SizedBox(height: 4),
+//             Row(
+//               children: [
+//                 Container(
+//                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+//                   decoration: BoxDecoration(
+//                     color: StatusUtils.getSalesmanStatusColor(data['status']).withOpacity(0.1),
+//                     borderRadius: BorderRadius.circular(12),
+//                     border: Border.all(
+//                       color: StatusUtils.getSalesmanStatusColor(data['status']).withOpacity(0.3),
+//                     ),
+//                   ),
+//                   child: Text(
+//                     StatusUtils.formatStatus(data['status']),
+//                     style: TextStyle(
+//                       fontSize: 10,
+//                       fontWeight: FontWeight.w600,
+//                       color: StatusUtils.getSalesmanStatusColor(data['status']),
+//                     ),
+//                   ),
+//                 ),
+//                 const Spacer(),
+//                 if (data['createdAt'] != null)
+//                   Text(
+//                     DateUtilHelper.formatDate(data['createdAt']),
+//                     style: TextStyle(
+//                       color: Colors.grey[600],
+//                       fontSize: 10,
+//                     ),
+//                   ),
+//               ],
+//             ),
+//           ],
+//         ),
+//         trailing: Icon(
+//           Icons.chevron_right,
+//           color: Colors.grey.shade400,
+//         ),
+//         onTap: onTap,
+//         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+//       ),
+//     );
+//   }
+// }

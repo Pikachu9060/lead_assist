@@ -5,6 +5,7 @@ import 'package:leadassist/core/config.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/custom_text_field.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,12 +34,14 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
+      print("Cred = ${_emailController.text.trim()} : ${_passwordController.text.trim()}");
       await AuthService.login(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
       // Navigation handled by AuthWrapper
     } catch (e) {
+      print(e);
       _showError(e.toString());
     } finally {
       if (mounted) {
@@ -181,13 +184,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Organization Name
                   SizedBox(
                     width: 400,
-                    child: TextFormField(
+                    child: CustomTextField(
                       controller: _orgNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Organization Name',
-                        prefixIcon: Icon(Icons.business),
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Organization Name',
+                      icon: Icons.business,
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter organization name';
@@ -201,13 +201,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Owner Name
                   SizedBox(
                     width: 400,
-                    child: TextFormField(
+                    child: CustomTextField(
                       controller: _ownerNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Owner Name',
-                        prefixIcon: Icon(Icons.person),
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Owner Name',
+                      icon: Icons.person,
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter owner name';
@@ -222,13 +219,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Email Field
                 SizedBox(
                   width: 400,
-                  child: TextFormField(
+                  child: CustomTextField(
                     controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email),
-                      border: OutlineInputBorder(),
-                    ),
+                    label: 'Email',
+                    icon: Icons.email,
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -247,13 +241,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Owner Mobile
                   SizedBox(
                     width: 400,
-                    child: TextFormField(
+                    child: CustomTextField(
                       controller: _ownerMobileController,
-                      decoration: const InputDecoration(
-                        labelText: 'Mobile Number',
-                        prefixIcon: Icon(Icons.phone),
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Mobile Number',
+                      icon: Icons.phone,
                       keyboardType: TextInputType.phone,
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -272,21 +263,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Password Field
                 SizedBox(
                   width: 400,
-                  child: TextFormField(
+                  child: CustomTextField(
                     controller: _passwordController,
-                    decoration: InputDecoration(
-                      labelText: _isSignUp ? 'Password' : 'Password',
-                      prefixIcon: const Icon(Icons.lock),
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                        ),
-                        onPressed: () {
-                          setState(() => _obscurePassword = !_obscurePassword);
-                        },
-                      ),
-                    ),
+                    label: _isSignUp ? 'Password' : 'Password',
+                    icon: Icons.lock,
                     obscureText: _obscurePassword,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -305,13 +285,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Confirm Password
                   SizedBox(
                     width: 400,
-                    child: TextFormField(
+                    child: CustomTextField(
                       controller: _confirmPasswordController,
-                      decoration: const InputDecoration(
-                        labelText: 'Confirm Password',
-                        prefixIcon: Icon(Icons.lock_outline),
-                        border: OutlineInputBorder(),
-                      ),
+                      label: 'Confirm Password',
+                      icon: Icons.lock_outline,
                       obscureText: _obscurePassword,
                       validator: (value) {
                         if (value == null || value.isEmpty) {

@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:leadassist/services/fcm_service.dart';
 import '../services/enquiry_service.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../services/customer_service.dart';
 import '../core/config.dart';
 import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/stat_card.dart';
 import 'add_customer_screen.dart';
 import 'add_enquiry_screen.dart';
 import 'add_user_screen.dart';
@@ -93,7 +93,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       _showLogoutLoadingDialog(context);
 
       try {
-        await FCMService.removeCurrentDevice();
+        // await FCMService.removeCurrentDevice();
         await AuthService.logout();
 
         // Close the loading dialog
@@ -199,7 +199,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
       ),
     );
   }
-  
+
 
   @override
   Widget build(BuildContext context) {
@@ -665,41 +665,61 @@ class _DashboardContentState extends State<_DashboardContent> {
     final enquiryCount = _dashboardStats?['enquiryCount'] ?? 0;
 
     List<Widget> statCards = [
-      _buildStatCard(
+      StatCard(
           title: 'Sales Team',
           count: salesmanCount,
           subtitle: 'Field Executives',
           color: Colors.green,
           icon: Icons.people_alt,
-          screen: ManageUsersScreen(organizationId: widget.organizationId, userRole: AppConfig.salesmanRole)
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ManageUsersScreen(organizationId: widget.organizationId, userRole: AppConfig.salesmanRole)),
+            );
+          }
       ),
-      _buildStatCard(
+      StatCard(
           title: 'Customers',
           count: customerCount,
           subtitle: 'Total Clients',
           color: Colors.orange,
           icon: Icons.person,
-          screen: ManageCustomersScreen(organizationId: widget.organizationId,)
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ManageCustomersScreen(organizationId: widget.organizationId)),
+            );
+          }
       ),
-      _buildStatCard(
+      StatCard(
           title: 'Enquiries',
           count: enquiryCount,
           subtitle: 'Active Leads',
           color: Colors.purple,
           icon: Icons.inbox,
-          screen: ManageEnquiriesScreen(organizationId: widget.organizationId)
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ManageEnquiriesScreen(organizationId: widget.organizationId)),
+            );
+          }
       ),
     ];
 
     // Add Managers card only for owners
     if (widget.userData["role"] == AppConfig.ownerRole) {
-      statCards.insert(0, _buildStatCard(
+      statCards.insert(0, StatCard(
           title: 'Managers',
           count: adminCount,
           subtitle: 'Team Leaders',
           color: Colors.blue,
           icon: Icons.admin_panel_settings,
-          screen: ManageUsersScreen(organizationId: widget.organizationId, userRole: AppConfig.managerRole)
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => ManageUsersScreen(organizationId: widget.organizationId, userRole: AppConfig.managerRole)),
+            );
+          }
       ));
     }
 
@@ -709,88 +729,6 @@ class _DashboardContentState extends State<_DashboardContent> {
       mainAxisSpacing: 16,
       childAspectRatio: 1.3,
       children: statCards,
-    );
-  }
-
-  Widget _buildStatCard({
-    required String title,
-    required int count,
-    required String subtitle,
-    required Color color,
-    required IconData icon,
-    required Widget screen, // Add screen parameter for navigation
-  }) {
-    return Card(
-      elevation: 4,
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => screen),
-          );
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                color.withOpacity(0.1),
-                color.withOpacity(0.05),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(icon, size: 24, color: color),
-                    ),
-                    const Spacer(),
-                    Text(
-                      count.toString(),
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: color,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

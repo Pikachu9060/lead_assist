@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/user_service.dart';
 import '../core/config.dart';
 import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/custom_text_field.dart';
 
 class AddUserScreen extends StatefulWidget {
   final String organizationId;
@@ -96,7 +97,7 @@ class _AddUserScreenState extends State<AddUserScreen> {
           key: _formKey,
           child: Column(
             children: [
-              _buildTextField(
+              CustomTextField(
                 controller: _nameController,
                 label: 'Full Name',
                 icon: Icons.person,
@@ -105,7 +106,7 @@ class _AddUserScreenState extends State<AddUserScreen> {
                     : null,
               ),
               const SizedBox(height: 16),
-              _buildTextField(
+              CustomTextField(
                 controller: _emailController,
                 label: 'Email',
                 icon: Icons.email,
@@ -121,7 +122,7 @@ class _AddUserScreenState extends State<AddUserScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              _buildTextField(
+              CustomTextField(
                 controller: _mobileController,
                 label: 'Mobile Number',
                 icon: Icons.phone,
@@ -155,25 +156,6 @@ class _AddUserScreenState extends State<AddUserScreen> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: const OutlineInputBorder(),
-      ),
-      keyboardType: keyboardType,
-      validator: validator,
-    );
-  }
-
   Widget _buildRegionDropdown() {
     return DropdownButtonFormField<String>(
       value: _selectedRegion,
@@ -183,9 +165,9 @@ class _AddUserScreenState extends State<AddUserScreen> {
         border: OutlineInputBorder(),
       ),
       items: AppConfig.regions.map((region) => DropdownMenuItem(
-          value: region,
-          child: Text(region),
-        )).toList(),
+        value: region,
+        child: Text(region),
+      )).toList(),
       onChanged: (value) {
         setState(() => _selectedRegion = value);
       },

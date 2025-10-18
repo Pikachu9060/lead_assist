@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../services/user_service.dart';
 import '../core/config.dart';
 import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/custom_text_field.dart';
+import '../shared/utils/date_utils.dart';
 
 class EditUserScreen extends StatefulWidget {
   final String userId;
@@ -138,7 +140,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(
+                    CustomTextField(
                       controller: _nameController,
                       label: 'Full Name',
                       icon: Icons.person,
@@ -147,7 +149,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
                           : null,
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(
+                    CustomTextField(
                       controller: _emailController,
                       label: 'Email',
                       icon: Icons.email,
@@ -163,7 +165,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(
+                    CustomTextField(
                       controller: _mobileController,
                       label: 'Mobile Number',
                       icon: Icons.phone,
@@ -199,7 +201,7 @@ class _EditUserScreenState extends State<EditUserScreen> {
                     const SizedBox(height: 16),
                     _buildStatRow('Role', _userData!['role'] ?? 'Unknown'),
                     _buildStatRow('Status', (_userData!['isActive'] ?? true) ? 'Active' : 'Inactive'),
-                    _buildStatRow('Created', _formatDate(_userData!['createdAt'])),
+                    _buildStatRow('Created', DateUtilHelper.formatDate(_userData!['createdAt'])),
                     if (_userData!['role'] == 'salesman') ...[
                       _buildStatRow('Total Enquiries', _userData!['totalEnquiries'] ?? 0),
                       _buildStatRow('Completed Enquiries', _userData!['completedEnquiries'] ?? 0),
@@ -221,25 +223,6 @@ class _EditUserScreenState extends State<EditUserScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: const OutlineInputBorder(),
-      ),
-      keyboardType: keyboardType,
-      validator: validator,
     );
   }
 
@@ -293,16 +276,6 @@ class _EditUserScreenState extends State<EditUserScreen> {
         ],
       ),
     );
-  }
-
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown';
-    try {
-      final date = timestamp.toDate();
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return 'Invalid date';
-    }
   }
 
   @override

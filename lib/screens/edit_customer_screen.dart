@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/customer_service.dart';
 import '../shared/widgets/loading_indicator.dart';
+import '../shared/widgets/custom_text_field.dart';
+import '../shared/utils/date_utils.dart';
 
 class EditCustomerScreen extends StatefulWidget {
   final String customerId;
@@ -126,7 +128,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(
+                    CustomTextField(
                       controller: _nameController,
                       label: 'Customer Name',
                       icon: Icons.person,
@@ -135,7 +137,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
                           : null,
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(
+                    CustomTextField(
                       controller: _mobileController,
                       label: 'Mobile Number',
                       icon: Icons.phone,
@@ -173,9 +175,9 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
                     const SizedBox(height: 16),
                     _buildStatRow('Total Enquiries', _customerData!['totalEnquiries'] ?? 0),
                     _buildStatRow('Active Enquiries', _customerData!['activeEnquiries'] ?? 0),
-                    _buildStatRow('Customer Since', _formatDate(_customerData!['createdAt'])),
+                    _buildStatRow('Customer Since', DateUtilHelper.formatDate(_customerData!['createdAt'])),
                     if (_customerData!['updatedAt'] != null)
-                      _buildStatRow('Last Updated', _formatDate(_customerData!['updatedAt'])),
+                      _buildStatRow('Last Updated', DateUtilHelper.formatDate(_customerData!['updatedAt'])),
                   ],
                 ),
               ),
@@ -283,34 +285,11 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: const OutlineInputBorder(),
-      ),
-      keyboardType: keyboardType,
-      validator: validator,
-    );
-  }
-
   Widget _buildAddressField() {
-    return TextFormField(
+    return CustomTextField(
       controller: _addressController,
-      decoration: const InputDecoration(
-        labelText: 'Address',
-        prefixIcon: Icon(Icons.location_on),
-        border: OutlineInputBorder(),
-        hintText: 'Enter complete address...',
-      ),
+      label: 'Address',
+      icon: Icons.location_on,
       maxLines: 3,
       validator: (value) => value?.isEmpty ?? true
           ? 'Please enter address'
@@ -396,16 +375,6 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
         _showError('Failed to delete customer: $e');
         setState(() => _isLoading = false);
       }
-    }
-  }
-
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Unknown';
-    try {
-      final date = timestamp.toDate();
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return 'Invalid date';
     }
   }
 

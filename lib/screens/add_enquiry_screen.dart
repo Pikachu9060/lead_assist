@@ -7,6 +7,7 @@ import '../services/user_service.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/error_widget.dart';
+import '../shared/widgets/custom_text_field.dart';
 import 'add_customer_screen.dart';
 
 class AddEnquiryScreen extends StatefulWidget {
@@ -142,18 +143,13 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final selectedUser = _salesmen.firstWhere(
-        (doc) => doc.id == _selectedUserId,
-      );
 
       await EnquiryService.addEnquiryWithCustomer(
         customerId: _customerId!,
-        customerName: _customerNameController.text.trim(),
         customerMobile: _customerMobileController.text.trim(),
         product: _productController.text.trim(),
         description: _descriptionController.text.trim(),
         assignedSalesmanId: _selectedUserId!,
-        assignedSalesmanName: selectedUser['name'],
         organizationId: widget.organizationId,
       );
 
@@ -226,14 +222,14 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
             if (_customerFound) _buildCustomerDetailsSection(),
 
             const SizedBox(height: 16),
-            _buildTextField(
+            CustomTextField(
               controller: _productController,
               label: 'Product *',
               validator: (value) =>
                   value?.isEmpty ?? true ? 'Please enter product' : null,
             ),
             const SizedBox(height: 16),
-            _buildTextField(
+            CustomTextField(
               controller: _descriptionController,
               label: 'Description *',
               maxLines: 4,
@@ -265,13 +261,10 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
+                  child: CustomTextField(
                     controller: _customerMobileController,
-                    decoration: const InputDecoration(
-                      labelText: 'Mobile Number *',
-                      prefixIcon: Icon(Icons.phone),
-                      border: OutlineInputBorder(),
-                    ),
+                    label: 'Mobile Number *',
+                    icon: Icons.phone,
                     keyboardType: TextInputType.phone,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
@@ -288,13 +281,17 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
                 _searchingCustomer
                     ? const CircularProgressIndicator()
                     : ElevatedButton(
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStateProperty.all<Color>(Colors.purple),
-                    foregroundColor: WidgetStateProperty.all<Color>(Colors.white),
-                  ),
-                  onPressed: _searchCustomer,
-                  child: const Text('Search'),
-                ),
+                        style: ButtonStyle(
+                          backgroundColor: WidgetStateProperty.all<Color>(
+                            Colors.purple,
+                          ),
+                          foregroundColor: WidgetStateProperty.all<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                        onPressed: _searchCustomer,
+                        child: const Text('Search'),
+                      ),
               ],
             ),
             if (_customerFound)
@@ -337,7 +334,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            _buildTextField(
+            CustomTextField(
               controller: _customerNameController,
               label: 'Customer Name *',
               icon: Icons.person,
@@ -355,25 +352,6 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    IconData? icon,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: icon != null ? Icon(icon) : null,
-        border: const OutlineInputBorder(),
-      ),
-      maxLines: maxLines,
-      validator: validator,
-    );
-  }
-
   Widget _buildSalesmanDropdown() {
     return DropdownButtonFormField<String>(
       value: _selectedUserId,
@@ -387,10 +365,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
           value: user.id,
           child: RichText(
             text: TextSpan(
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.black,
-              ),
+              style: const TextStyle(fontSize: 14, color: Colors.black),
               children: [
                 TextSpan(
                   text: user['name'],
