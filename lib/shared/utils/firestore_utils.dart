@@ -26,6 +26,14 @@ class FirestoreUtils {
   static CollectionReference getEnquiriesCollection(String organizationId) {
     return getOrganizationCollection(organizationId, 'enquiries');
   }
+  
+  static CollectionReference getUpdateCollection(String organizationId, String enquiryId){
+    return getEnquiriesCollection(organizationId).doc(enquiryId).collection('updates');
+  }
+  
+  static CollectionReference getUserNotificationCollection(){
+    return _firestore.collection('users_notifications');
+  }
 
   // Common field operations
   static Map<String, dynamic> addTimestamps(Map<String, dynamic> data, {bool includeUpdated = true}) {

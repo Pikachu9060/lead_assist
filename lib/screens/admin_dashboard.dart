@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../cached_services/cached_data_service.dart';
+import '../cached_services/cached_user_notification_service.dart';
 import '../services/enquiry_service.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
@@ -28,6 +30,7 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
   Map<String, dynamic>? _currentUserData;
   String? _organizationName;
   bool _isExpanded = false;
+  bool _isHiveInitialized = false;
   late AnimationController _animationController;
 
   @override
@@ -39,6 +42,24 @@ class _AdminDashboardState extends State<AdminDashboard> with SingleTickerProvid
     );
     _loadCurrentUserData();
     _loadOrganizationName();
+    _initializeHive();
+  }
+
+  Future<void> _initializeHive() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userData = await AuthService.getUserData(FirebaseAuth.instance.currentUser!.uid);
+      await CachedDataService.initializeForUser(
+        userId: user.uid,
+        userRole: userData!['role'],
+        organizationId: widget.organizationId,
+      );
+      // Initialize notifications stream
+      await CachedUserNotificationService.initializeUserNotificationsStream();
+      setState(() {
+        _isHiveInitialized = true;
+      });
+    }
   }
 
   @override

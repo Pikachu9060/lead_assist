@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:leadassist/refactor_services/auth_service.dart';
 import 'package:leadassist/shared/utils/date_utils.dart';
 import '../hive/hive_data_manager.dart';
 import '../models/enquiry_model.dart';
@@ -8,7 +8,6 @@ import '../models/update_model.dart';
 import '../refactor_services/enquiry_service.dart';
 
 class CachedEnquiryService {
-  static final _enquiryService = EnquiryService();
   static final Map<String, StreamSubscription> _subscriptions = {};
   static final Map<String, StreamSubscription> _updatesSubscriptions = {};
 
@@ -45,12 +44,23 @@ class CachedEnquiryService {
     final stream = EnquiryService.getEnquiryUpdates(organizationId, enquiryId);
     _updatesSubscriptions[key] = stream.listen((snapshot) async {
       for (final doc in snapshot.docs) {
-        final updateModel = UpdateModel.fromFirestore(
-          doc.data() as Map<String, dynamic>,
-          doc.id,
-        );
+        final data = doc.data() as Map<String, dynamic>;
+
+        // Create the update data with all required fields
+        final updateData = {
+          ...data,
+          'enquiryId': enquiryId,
+          'organizationId': organizationId,
+        };
+
+        final updateModel = UpdateModel.fromFirestore(updateData, doc.id);
         await HiveDataManager.saveUpdate(updateModel);
+
+        // Debug print
+        print('✅ Saved update: ${updateModel.text} for enquiry: $enquiryId');
       }
+    }, onError: (error) {
+      print('❌ Error in updates stream: $error');
     });
   }
 
@@ -112,7 +122,9 @@ class CachedEnquiryService {
         status: status,
         createdAt: cachedEnquiry.createdAt,
         updatedAt: DateTime.now(),
+        lastUpdatedBy: AuthService.getUserId()
       );
+      print(updatedEnquiry.lastUpdatedBy);
       await HiveDataManager.saveEnquiry(updatedEnquiry);
     }
   }
@@ -176,7 +188,11 @@ class CachedEnquiryService {
       ) {
     // Initialize updates stream if not already done
     initializeEnquiryUpdatesStream(organizationId, enquiryId);
-    return HiveDataManager.watchUpdatesByEnquiry(enquiryId);
+    final data = HiveDataManager.watchUpdatesByEnquiry(enquiryId, organizationId);
+    data.first.then((value)=>{
+      print("enuiqry update data ${value} : type : ${value.runtimeType}")
+    });
+    return data;
   }
 
   // Search

@@ -1,10 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:leadassist/shared/utils/firestore_utils.dart';
-import '../services/enquiry_service.dart';
-import '../services/user_service.dart';
-import '../shared/widgets/loading_indicator.dart';
+import 'package:leadassist/cached_services/cached_update_service.dart';
+import '../cached_services/cached_customer_service.dart';
+import '../cached_services/cached_enquiry_service.dart';
+import '../cached_services/cached_user_service.dart';
+import '../models/customer_model.dart';
+import '../models/enquiry_model.dart';
+import '../models/update_model.dart';
+import '../models/user_model.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/utils/date_utils.dart';
 import '../shared/utils/status_utils.dart';
@@ -30,10 +33,24 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
   bool _isAddingUpdate = false;
   bool _isUpdatingStatus = false;
   String? _selectedStatus;
+  bool _isInitialLoad = true;
 
   @override
   void initState() {
     super.initState();
+    // Initialize the updates stream for this enquiry
+    CachedUpdateService.initializeUpdatesStream(
+        widget.organizationId,
+        widget.enquiryId
+    );
+    // Set initial load to false after a small delay to show cached data quickly
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(() {
+          _isInitialLoad = false;
+        });
+      }
+    });
   }
 
   Future<void> _addUpdate() async {
@@ -46,15 +63,15 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      final userData = await UserService.getUser(user!.uid);
-      final userName = userData['name'] ?? user.email ?? 'Unknown User';
+      final userData = await CachedUserService.getUserById(user!.uid);
+      final userName = userData?.name ?? user.email ?? 'Unknown User';
 
-      await EnquiryService.addUpdateToEnquiry(
+      await CachedEnquiryService.addUpdateToEnquiry(
+        organizationId: widget.organizationId,
         enquiryId: widget.enquiryId,
         updateText: _updateController.text.trim(),
         updatedBy: user.uid,
         updatedByName: userName,
-        organizationId: widget.organizationId,
       );
 
       _updateController.clear();
@@ -79,7 +96,11 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
     setState(() => _isUpdatingStatus = true);
 
     try {
-      await EnquiryService.updateEnquiryStatus(widget.organizationId, widget.enquiryId, newStatus);
+      await CachedEnquiryService.updateEnquiryStatus(
+          widget.organizationId,
+          widget.enquiryId,
+          newStatus
+      );
 
       setState(() {
         _selectedStatus = newStatus;
@@ -123,6 +144,13 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isInitialLoad) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Enquiry Details')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Enquiry Details'),
@@ -151,41 +179,53 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
   }
 
   Widget _buildEnquiryInfo() {
-    return StreamBuilder(
-        stream: FirestoreUtils.getEnquiriesCollection(widget.organizationId).doc(widget.enquiryId).snapshots(),
-        builder: (context, enquiryAsyncSnapshot){
-          if(!enquiryAsyncSnapshot.hasData){
-            return const Text("No Data Found");
-          }
-          if(enquiryAsyncSnapshot.hasError){
-            return Text("Error while Loading Data: ${enquiryAsyncSnapshot.error}");
-          }
+    return StreamBuilder<List<EnquiryModel>>(
+      stream: CachedEnquiryService.watchAllEnquiries(widget.organizationId),
+      builder: (context, snapshot) {
+        // Don't show loading for stream updates, only show data
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return _buildEnquiryInfoPlaceholder();
+        }
 
-          final enquiryData = enquiryAsyncSnapshot.data!.data() as Map<String, dynamic>;
+        // Find the specific enquiry
+        final enquiry = snapshot.data!.firstWhere(
+              (e) => e.enquiryId == widget.enquiryId,
+          orElse: () => null as EnquiryModel,
+        );
 
-          // Initialize _selectedStatus from the current enquiry data
-          if (_selectedStatus == null) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              setState(() {
-                _selectedStatus = enquiryData['status'] ?? 'pending';
-              });
+        if (enquiry == null) {
+          return _buildEnquiryInfoPlaceholder();
+        }
+
+        // Initialize _selectedStatus from the current enquiry data
+        if (_selectedStatus == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            setState(() {
+              _selectedStatus = enquiry.status;
             });
-          }
+          });
+        }
 
-          final customerFuture = FirestoreUtils.getCustomersCollection(widget.organizationId).doc(enquiryData["customerId"]).get();
+        return StreamBuilder<List<CustomerModel>>(
+          stream: CachedCustomerService.watchCustomers(widget.organizationId),
+          builder: (context, customerSnapshot) {
+            final customer = customerSnapshot.hasData
+                ? customerSnapshot.data!.firstWhere(
+                  (c) => c.customerId == enquiry.customerId,
+              orElse: () => null as CustomerModel,
+            )
+                : null;
 
-          return FutureBuilder(
-              future: customerFuture,
-              builder: (context, customerAsyncSnapshot) {
-                if(customerAsyncSnapshot.connectionState == ConnectionState.waiting){
-                  return const LoadingIndicator();
-                }
+            return StreamBuilder<List<UserModel>>(
+              stream: CachedUserService.watchUsers(widget.organizationId),
+              builder: (context, userSnapshot) {
+                final salesman = userSnapshot.hasData
+                    ? userSnapshot.data!.firstWhere(
+                      (u) => u.userId == enquiry.assignedSalesmanId,
+                  orElse: () => null as UserModel,
+                )
+                    : null;
 
-                if(!customerAsyncSnapshot.hasData || customerAsyncSnapshot.hasError){
-                  return Text("Unable to Load Data: ${customerAsyncSnapshot.error}");
-                }
-
-                final customerData = customerAsyncSnapshot.data!.data() as Map<String, dynamic>;
                 return Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -197,31 +237,59 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 16),
-                        _buildInfoRow('Customer', customerData['name']),
-                        _buildInfoRow('Mobile', customerData['mobileNumber']),
-                        _buildInfoRow('Address', customerData['address']),
-                        _buildInfoRow('Product', enquiryData['product']),
-                        _buildInfoRow('Description', enquiryData['description']),
+                        _buildInfoRow('Customer', customer?.name ?? 'Loading...'),
+                        _buildInfoRow('Mobile', customer?.mobileNumber ?? 'Loading...'),
+                        _buildInfoRow('Address', customer?.address ?? 'Loading...'),
+                        _buildInfoRow('Product', enquiry.product),
+                        _buildInfoRow('Description', enquiry.description),
                         if (!widget.isSalesman)
-                          _buildInfoRow('Assigned To', enquiryData['assignedSalesmanName']),
-                        // _buildInfoRow('Status', StatusUtils.formatStatus(enquiryData['status'])),
-                        if (enquiryData['createdAt'] != null)
-                          _buildInfoRow(
-                            'Created',
-                            DateUtilHelper.formatDateTime(enquiryData['createdAt']),
-                          ),
-                        if (enquiryData['updatedAt'] != null)
-                          _buildInfoRow(
-                            'Last Updated',
-                            DateUtilHelper.formatDateTime(enquiryData['updatedAt']),
-                          ),
+                          _buildInfoRow('Assigned To', salesman?.name ?? 'Loading...'),
+                        _buildInfoRow('Status', StatusUtils.formatStatus(enquiry.status)),
+                        _buildInfoRow(
+                          'Created',
+                          DateUtilHelper.formatDateTime(enquiry.createdAt),
+                        ),
+                        _buildInfoRow(
+                          'Last Updated',
+                          DateUtilHelper.formatDateTime(enquiry.updatedAt),
+                        ),
                       ],
                     ),
                   ),
                 );
-              }
-          );
-        }
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEnquiryInfoPlaceholder() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enquiry Information',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            _buildInfoRow('Customer', 'Loading...'),
+            _buildInfoRow('Mobile', 'Loading...'),
+            _buildInfoRow('Address', 'Loading...'),
+            _buildInfoRow('Product', 'Loading...'),
+            _buildInfoRow('Description', 'Loading...'),
+            if (!widget.isSalesman)
+              _buildInfoRow('Assigned To', 'Loading...'),
+            _buildInfoRow('Status', 'Loading...'),
+            _buildInfoRow('Created', 'Loading...'),
+            _buildInfoRow('Last Updated', 'Loading...'),
+          ],
+        ),
+      ),
     );
   }
 
@@ -247,6 +315,10 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
   }
 
   Widget _buildStatusUpdateSection() {
+    if (_selectedStatus == null) {
+      return const SizedBox(); // Don't show until we have data
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -292,14 +364,13 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            if (_selectedStatus != null)
-              Text(
-                'Current: ${StatusUtils.formatStatus(_selectedStatus!)}',
-                style: TextStyle(
-                  color: StatusUtils.getStatusColor(_selectedStatus!),
-                  fontWeight: FontWeight.bold,
-                ),
+            Text(
+              'Current: ${StatusUtils.formatStatus(_selectedStatus!)}',
+              style: TextStyle(
+                color: StatusUtils.getStatusColor(_selectedStatus!),
+                fontWeight: FontWeight.bold,
               ),
+            ),
           ],
         ),
       ),
@@ -332,25 +403,21 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            StreamBuilder<QuerySnapshot>(
-              stream: EnquiryService.getEnquiryUpdates(widget.organizationId, widget.enquiryId),
+            StreamBuilder<List<UpdateModel>>(
+              stream: CachedUpdateService.watchUpdatesForEnquiry(
+                  widget.organizationId,
+                  widget.enquiryId
+              ),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const LoadingIndicator();
-                }
-
-                if (snapshot.hasError) {
-                  return Text('Error: ${snapshot.error}');
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                // Show empty state immediately if no data
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const EmptyStateWidget(
                     message: 'No updates yet\nTap the + button to add your first visit update',
                     icon: Icons.timeline,
                   );
                 }
 
-                final updates = snapshot.data!.docs;
+                final updates = snapshot.data!;
                 return _buildTimeline(updates);
               },
             ),
@@ -360,12 +427,9 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
     );
   }
 
-  Widget _buildTimeline(List<QueryDocumentSnapshot> updates) {
-    updates.sort((a, b) {
-      final aTime = (a.data() as Map<String, dynamic>)['createdAt']?.toDate() ?? DateTime.now();
-      final bTime = (b.data() as Map<String, dynamic>)['createdAt']?.toDate() ?? DateTime.now();
-      return bTime.compareTo(aTime);
-    });
+  Widget _buildTimeline(List<UpdateModel> updates) {
+    // Sort updates by createdAt in descending order (newest first)
+    updates.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return ListView.builder(
       shrinkWrap: true,
@@ -373,12 +437,11 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
       itemCount: updates.length,
       itemBuilder: (context, index) {
         final update = updates[index];
-        final data = update.data() as Map<String, dynamic>;
         final isFirst = index == 0;
         final isLast = index == updates.length - 1;
 
         return _TimelineItem(
-          updateData: data,
+          update: update,
           isFirst: isFirst,
           isLast: isLast,
         );
@@ -487,12 +550,12 @@ class _EnquiryDetailScreenState extends State<EnquiryDetailScreen> {
 }
 
 class _TimelineItem extends StatelessWidget {
-  final Map<String, dynamic> updateData;
+  final UpdateModel update;
   final bool isFirst;
   final bool isLast;
 
   const _TimelineItem({
-    required this.updateData,
+    required this.update,
     required this.isFirst,
     required this.isLast,
   });
@@ -554,27 +617,34 @@ class _TimelineItem extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        updateData['updatedByName'] ?? 'Unknown User',
+                        "${update.updatedByName} (${update.updatedBy == FirebaseAuth.instance.currentUser!.uid ? 'You' : 'Manager'})",
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
                       ),
                     ),
-                    if (updateData['createdAt'] != null)
-                      Text(
-                        DateUtilHelper.formatDateWithTime(updateData['createdAt']),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                    Text(
+                      DateUtilHelper.formatDateWithTime(update.createdAt),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
                       ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  updateData['text'] ?? '',
+                  update.text ?? '',
                   style: const TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    DateUtilHelper.parseTimestamp(update.createdAt).toString() ?? '',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic),
+                  ),
                 ),
               ],
             ),

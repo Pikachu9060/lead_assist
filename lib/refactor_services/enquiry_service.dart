@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:leadassist/refactor_services/auth_service.dart';
 import '../core/config.dart';
 import '../shared/utils/error_utils.dart';
 import '../shared/utils/firestore_utils.dart';
@@ -77,7 +78,7 @@ class EnquiryService {
     try {
       await _getEnquiriesCollection(organizationId)
           .doc(enquiryId)
-          .update(FirestoreUtils.updateTimestamp({'status': status}));
+          .update(FirestoreUtils.updateTimestamp({'status': status, 'lastUpdatedBy': AuthService.getUserId()}));
     } catch (e) {
       throw ErrorUtils.handleGenericError('update enquiry status', e);
     }
@@ -132,7 +133,7 @@ class EnquiryService {
       // Update main enquiry timestamp
       await _getEnquiriesCollection(organizationId)
           .doc(enquiryId)
-          .update(FirestoreUtils.updateTimestamp({}));
+          .update(FirestoreUtils.updateTimestamp({'lastUpdatedBy' : AuthService.getUserId()}));
     } catch (e) {
       throw ErrorUtils.handleGenericError('add update to enquiry', e);
     }

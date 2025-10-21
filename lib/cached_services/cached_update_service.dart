@@ -1,9 +1,8 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../services/update_service.dart';
 import '../hive/hive_data_manager.dart';
 import '../models/update_model.dart';
+import '../refactor_services/update_service.dart';
 
 class CachedUpdateService {
   static final Map<String, StreamSubscription> _subscriptions = {};
@@ -13,11 +12,20 @@ class CachedUpdateService {
     final key = '$organisationId-$enquiryId';
     if (_subscriptions.containsKey(key)) return;
 
-    final stream = UpdateService.getUpdatesForEnquiry(enquiryId);
+    final stream = UpdateService.getUpdatesForEnquiry(organisationId, enquiryId);
+
     _subscriptions[key] = stream.listen((snapshot) async {
       for (final doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        final updateData = {
+          ...data,
+          'enquiryId': enquiryId,
+          'organizationId': organisationId,
+        };
+
         final updateModel = UpdateModel.fromFirestore(
-          doc.data() as Map<String, dynamic>,
+          updateData,
           doc.id,
         );
         await HiveDataManager.saveUpdate(updateModel);
@@ -25,8 +33,23 @@ class CachedUpdateService {
     });
   }
 
-  static Stream<List<UpdateModel>> watchUpdatesForEnquiry(String enquiryId) {
-    return HiveDataManager.watchUpdatesByEnquiry(enquiryId);
+  static Stream<List<UpdateModel>> watchUpdatesForEnquiry(String organizationId, String enquiryId) {
+    final key = '$organizationId-$enquiryId';
+
+    print('👀 Watching updates for: $key');
+
+    // Ensure stream is initialized
+    if (!_subscriptions.containsKey(key)) {
+      initializeUpdatesStream(organizationId, enquiryId);
+    }
+
+    return HiveDataManager.watchUpdatesByEnquiry(enquiryId, organizationId);
+  }
+
+  static void disposeStream(String organizationId, String enquiryId) {
+    final key = '$organizationId-$enquiryId';
+    _subscriptions[key]?.cancel();
+    _subscriptions.remove(key);
   }
 
   static Future<void> dispose() async {

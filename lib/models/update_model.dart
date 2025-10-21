@@ -1,8 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
-
+import 'package:leadassist/shared/utils/date_utils.dart';
 import '../hive/hive_config.dart';
-import '../shared/utils/date_utils.dart';
 
 part 'update_model.g.dart';
 
@@ -15,50 +14,56 @@ class UpdateModel {
   final String enquiryId;
 
   @HiveField(2)
-  final String text;
+  final String organizationId;
 
   @HiveField(3)
-  final String updatedBy;
+  final String text;
 
   @HiveField(4)
-  final String updatedByName;
+  final String updatedBy;
 
   @HiveField(5)
-  final DateTime createdAt;
+  final String updatedByName;
 
   @HiveField(6)
-  final bool isRead;
+  final DateTime createdAt;
+
+  @HiveField(7)
+  final DateTime updatedAt;
 
   UpdateModel({
     required this.updateId,
     required this.enquiryId,
+    required this.organizationId,
     required this.text,
     required this.updatedBy,
     required this.updatedByName,
     required this.createdAt,
-    this.isRead = false,
+    required this.updatedAt,
   });
 
   factory UpdateModel.fromFirestore(Map<String, dynamic> data, String documentId) {
     return UpdateModel(
       updateId: documentId,
       enquiryId: data['enquiryId'] ?? '',
+      organizationId: data['organizationId'] ?? '',
       text: data['text'] ?? '',
       updatedBy: data['updatedBy'] ?? '',
       updatedByName: data['updatedByName'] ?? '',
-      createdAt:  DateUtilHelper.parseTimestamp(data['createdAt']),
-      isRead: data['isRead'] ?? false,
+      createdAt: DateUtilHelper.parseTimestamp(data['createdAt']),
+      updatedAt: DateUtilHelper.parseTimestamp(data['updatedAt']),
     );
   }
 
   Map<String, dynamic> toFirestore() {
     return {
       'enquiryId': enquiryId,
+      'organizationId': organizationId,
       'text': text,
       'updatedBy': updatedBy,
       'updatedByName': updatedByName,
-      'isRead': isRead,
       'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
 }

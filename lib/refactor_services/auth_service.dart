@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:leadassist/services/fcm_service.dart';
 import '../shared/utils/error_utils.dart';
 import '../shared/utils/firestore_utils.dart';
@@ -61,6 +60,9 @@ class AuthService {
     }
   }
 
+  static String? getUserId(){
+    return _auth.currentUser!.uid;
+  }
   static Future<void> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: FirestoreUtils.trimField(email));

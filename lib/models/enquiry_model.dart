@@ -35,6 +35,9 @@ class EnquiryModel {
   @HiveField(8)
   final DateTime updatedAt;
 
+  @HiveField(9)
+  final String? lastUpdatedBy;
+
   EnquiryModel({
     required this.enquiryId,
     required this.organizationId,
@@ -45,6 +48,7 @@ class EnquiryModel {
     required this.status,
     required this.createdAt,
     required this.updatedAt,
+    this.lastUpdatedBy
   });
 
   factory EnquiryModel.fromFirestore(Map<String, dynamic> data, String documentId) {
@@ -58,6 +62,7 @@ class EnquiryModel {
       status: data['status'] ?? 'pending',
       createdAt: DateUtilHelper.parseTimestamp(data['createdAt']),
       updatedAt: DateUtilHelper.parseTimestamp(data['updatedAt']),
+      lastUpdatedBy: data['lastUpdatedBy'],
     );
   }
 
@@ -70,6 +75,7 @@ class EnquiryModel {
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'lastUpdatedBy': lastUpdatedBy
     };
   }
 }

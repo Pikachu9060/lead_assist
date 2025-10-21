@@ -1,13 +1,10 @@
 import 'dart:async';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../hive/hive_data_manager.dart';
 import '../models/user_model.dart';
 import '../refactor_services/user_service.dart';
 
 class CachedUserService {
-  static final _userService = UserService();
   static final Map<String, StreamSubscription> _subscriptions = {};
 
   static Future<void> initializeUserStream(String organizationId) async {

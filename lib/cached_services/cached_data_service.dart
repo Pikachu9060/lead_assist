@@ -37,6 +37,7 @@ class CachedDataService {
     // Always subscribe to customers stream
     await CachedCustomerService.initializeCustomersStream(organizationId);
 
+
     // Subscribe to enquiries based on role
     if (userRole == 'admin' || userRole == 'owner') {
       // Admin/Owner can see all enquiries

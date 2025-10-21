@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import 'package:leadassist/models/user_notification.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/customer_model.dart';
@@ -21,6 +22,7 @@ class HiveService {
     Hive.registerAdapter(CustomerModelAdapter());
     Hive.registerAdapter(EnquiryModelAdapter());
     Hive.registerAdapter(UpdateModelAdapter());
+    Hive.registerAdapter(UserNotificationModelAdapter());
 
     // Open boxes
     await Hive.openBox<UserModel>(HiveConfig.usersBox);
@@ -28,6 +30,7 @@ class HiveService {
     await Hive.openBox<EnquiryModel>(HiveConfig.enquiriesBox);
     await Hive.openBox<UpdateModel>(HiveConfig.updatesBox);
     await Hive.openBox(HiveConfig.userPreferencesBox);
+    await Hive.openBox<UserNotificationModel>(HiveConfig.userNotificationBox);
 
     _isInitialized = true;
   }
@@ -37,6 +40,7 @@ class HiveService {
     await Hive.box<CustomerModel>(HiveConfig.customersBox).clear();
     await Hive.box<EnquiryModel>(HiveConfig.enquiriesBox).clear();
     await Hive.box<UpdateModel>(HiveConfig.updatesBox).clear();
+    await Hive.box<UpdateModel>(HiveConfig.userNotificationBox).clear();
   }
 
   static Future<void> close() async {

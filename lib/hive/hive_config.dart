@@ -7,10 +7,12 @@ class HiveConfig {
   static const String enquiriesBox = 'enquiries';
   static const String updatesBox = 'updates';
   static const String userPreferencesBox = 'user_prefs';
+  static const String userNotificationBox = 'user_notification';
 
   // Type IDs for Hive adapters
   static const int userModelTypeId = 1;
   static const int customerModelTypeId = 2;
   static const int enquiryModelTypeId = 3;
   static const int updateModelTypeId = 4;
+  static const int userNotificationTypeId = 5;
 }

@@ -3,10 +3,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../cached_services/cached_enquiry_service.dart';
 import '../cached_services/cached_data_service.dart';
 import '../cached_services/cached_user_service.dart';
+import '../cached_services/cached_user_notification_service.dart';
 import '../models/enquiry_model.dart';
 import '../shared/widgets/loading_indicator.dart';
 import '../shared/widgets/error_widget.dart';
 import 'manage_enquiries_screen.dart';
+import 'notifications_screen.dart';
 
 class SalesmanDashboard extends StatefulWidget {
   final String organizationId;
@@ -27,7 +29,9 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
   @override
   void initState() {
     super.initState();
-    _initializeHive();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeHive();
+    });
   }
 
   Future<void> _initializeHive() async {
@@ -38,6 +42,8 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
         userRole: 'salesman',
         organizationId: widget.organizationId,
       );
+      // Initialize notifications stream
+      await CachedUserNotificationService.initializeUserNotificationsStream();
       setState(() {
         _isHiveInitialized = true;
       });
@@ -54,6 +60,17 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
     }
   }
 
+  void _navigateToNotifications(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NotificationsScreen(
+          organizationId: widget.organizationId
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -66,6 +83,48 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          // Notification Icon with Badge
+          StreamBuilder<int>(
+            stream: CachedUserNotificationService.watchUnreadCount(),
+            builder: (context, snapshot) {
+              final unreadCount = snapshot.data ?? 0;
+
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.notifications),
+                    onPressed: () => _navigateToNotifications(context),
+                    tooltip: 'Notifications',
+                  ),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => _logout(context),
@@ -88,6 +147,7 @@ class _SalesmanDashboardState extends State<SalesmanDashboard> {
 
           return Column(
             children: [
+              // Notification Count Card below AppBar
               Expanded(
                 child: _DashboardContent(
                   organizationId: widget.organizationId,

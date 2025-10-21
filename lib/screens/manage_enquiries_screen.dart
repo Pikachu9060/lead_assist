@@ -1,4 +1,3 @@
-import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../cached_services/cached_enquiry_service.dart';
@@ -384,20 +383,48 @@ class __EnquiriesListState extends State<_EnquiriesList> {
       if (mounted) setState(() {});
     });
 
-    // Initialize enquiries stream
-    final enquiriesStream = widget.salesmanId != null
-        ? CachedEnquiryService.watchEnquiriesForSalesman(
-      widget.organizationId,
-      widget.salesmanId!,
-      status: widget.selectedStatuses.contains('all') ? null : widget.selectedStatuses,
-    )
-        : CachedEnquiryService.watchEnquiriesByStatus(
+    // Initialize enquiries stream - FIXED LOGIC
+    Stream<List<EnquiryModel>> enquiriesStream;
+
+    if (widget.salesmanId != null) {
+      // For salesman: show only their assigned enquiries
+      enquiriesStream = CachedEnquiryService.watchEnquiriesForSalesman(
         widget.organizationId,
-        widget.selectedStatuses
-    );
+        widget.salesmanId!,
+        status: widget.selectedStatuses.contains('all') ? null : widget.selectedStatuses,
+      );
+    } else {
+      // For admin/manager: show ALL enquiries in the organization
+      enquiriesStream = CachedEnquiryService.watchAllEnquiries(widget.organizationId);
+      print("admin here ${enquiriesStream.isEmpty}");
+    }
+
+    print("salesman Id : ${widget.salesmanId}");
+    // Apply status filtering for admin/manager
+    if (widget.salesmanId == null) {
+      enquiriesStream = enquiriesStream.map((enquiries) {
+        print("Here 2");
+        if (widget.selectedStatuses.contains('all')) {
+          return enquiries;
+        }
+        return enquiries.where((enquiry) =>
+            widget.selectedStatuses.contains(enquiry.status)
+        ).toList();
+      });
+    }
+
+    enquiriesStream.length.then((value) => print("Enquiry Stream Value $value"));
 
     enquiriesStream.listen((enquiries) {
       _enquiriesNotifier.value = enquiries;
+      print("Enquiries loaded: ${enquiries.length} for org: ${widget.organizationId}, statuses: ${widget.selectedStatuses}");
+      if (_isInitialLoad) {
+        setState(() {
+          _isInitialLoad = false;
+        });
+      }
+    }, onError: (error) {
+      print("Error loading enquiries: $error");
       if (_isInitialLoad) {
         setState(() {
           _isInitialLoad = false;

@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import 'package:leadassist/models/user_notification.dart';
 import 'package:rxdart/rxdart.dart';
 import '../models/user_model.dart';
 import '../models/customer_model.dart';
@@ -16,6 +17,9 @@ class HiveDataManager {
   BehaviorSubject<List<EnquiryModel>>();
   static final BehaviorSubject<List<UpdateModel>> _updatesController =
   BehaviorSubject<List<UpdateModel>>();
+
+  static final BehaviorSubject<List<UserNotificationModel>> _userNotificationsController =
+  BehaviorSubject<List<UserNotificationModel>>();
 
   // User operations (from platform_users collection)
   static Future<void> saveUser(UserModel user) async {
@@ -86,7 +90,7 @@ class HiveDataManager {
       final filteredEnquiries = enquiries
           .where((enquiry) => enquiry.organizationId == organizationId)
           .toList();
-
+      print("Filtered list : ${filteredEnquiries.length}");
       // Sort by updatedAt in descending order (newest first)
       filteredEnquiries.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
@@ -158,9 +162,10 @@ class HiveDataManager {
     _emitUpdatesUpdate();
   }
 
-  static Stream<List<UpdateModel>> watchUpdatesByEnquiry(String enquiryId) {
-    return _updatesController.stream.map((updates) =>
-        updates.where((update) => update.enquiryId == enquiryId).toList());
+  static Stream<List<UpdateModel>> watchUpdatesByEnquiry(String enquiryId, String organizationId) {
+    final data =  _updatesController.stream.map((updates) =>
+        updates.where((update) => update.enquiryId == enquiryId && update.organizationId == organizationId).toList());
+    return data;
   }
 
   static Future<void> deleteUpdate(String updateId) async {
@@ -168,6 +173,44 @@ class HiveDataManager {
     await box.delete(updateId);
     _emitUpdatesUpdate();
   }
+
+
+// User Notification operations
+  static Future<void> saveUserNotification(UserNotificationModel notification) async {
+    final box = Hive.box<UserNotificationModel>(HiveConfig.userNotificationBox);
+    await box.put(notification.id, notification);
+    _emitUserNotificationsUpdate();
+  }
+
+  static Future<UserNotificationModel?> getUserNotification(String notificationId) async {
+    final box = Hive.box<UserNotificationModel>(HiveConfig.userNotificationBox);
+    return box.get(notificationId);
+  }
+
+  static Future<List<UserNotificationModel>> getUserNotifications() async {
+    final box = Hive.box<UserNotificationModel>(HiveConfig.userNotificationBox);
+    return box.values.toList();
+  }
+
+  static Stream<List<UserNotificationModel>> watchUserNotifications() {
+    return _userNotificationsController.stream.map((notifications){
+      notifications.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return notifications;
+    });
+  }
+
+  static Future<void> deleteUserNotification(String notificationId) async {
+    final box = Hive.box<UserNotificationModel>(HiveConfig.userNotificationBox);
+    await box.delete(notificationId);
+    _emitUserNotificationsUpdate();
+  }
+
+// Add to your _emit methods
+  static void _emitUserNotificationsUpdate() {
+    final box = Hive.box<UserNotificationModel>(HiveConfig.userNotificationBox);
+    _userNotificationsController.add(box.values.toList());
+  }
+
 
   // Emit updates
   static void _emitUsersUpdate() {
@@ -196,6 +239,7 @@ class HiveDataManager {
     _emitCustomersUpdate();
     _emitEnquiriesUpdate();
     _emitUpdatesUpdate();
+    _emitUserNotificationsUpdate();
   }
 
   static Future<void> clearAllData() async {
@@ -203,10 +247,12 @@ class HiveDataManager {
     await Hive.box<CustomerModel>(HiveConfig.customersBox).clear();
     await Hive.box<EnquiryModel>(HiveConfig.enquiriesBox).clear();
     await Hive.box<UpdateModel>(HiveConfig.updatesBox).clear();
+    await Hive.box<UserNotificationModel>(HiveConfig.userNotificationBox).clear();
 
     _emitUsersUpdate();
     _emitCustomersUpdate();
     _emitEnquiriesUpdate();
     _emitUpdatesUpdate();
+    _emitUserNotificationsUpdate();
   }
 }

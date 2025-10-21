@@ -160,6 +160,7 @@ class _AddEnquiryScreenState extends State<AddEnquiryScreen> {
         const SnackBar(content: Text('Enquiry added successfully')),
       );
     } catch (e) {
+      print(e);
       _showError('Failed to add enquiry: $e');
     } finally {
       if (mounted) {

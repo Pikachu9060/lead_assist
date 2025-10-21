@@ -1,53 +1,53 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'update_model.dart';
+part of 'user_notification.dart';
 
 // **************************************************************************
 // TypeAdapterGenerator
 // **************************************************************************
 
-class UpdateModelAdapter extends TypeAdapter<UpdateModel> {
+class UserNotificationModelAdapter extends TypeAdapter<UserNotificationModel> {
   @override
-  final int typeId = 4;
+  final int typeId = 5;
 
   @override
-  UpdateModel read(BinaryReader reader) {
+  UserNotificationModel read(BinaryReader reader) {
     final numOfFields = reader.readByte();
     final fields = <int, dynamic>{
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
-    return UpdateModel(
-      updateId: fields[0] as String,
-      enquiryId: fields[1] as String,
-      organizationId: fields[2] as String,
-      text: fields[3] as String,
-      updatedBy: fields[4] as String,
-      updatedByName: fields[5] as String,
-      createdAt: fields[6] as DateTime,
-      updatedAt: fields[7] as DateTime,
+    return UserNotificationModel(
+      id: fields[0] as String,
+      message: fields[1] as String,
+      isRead: fields[2] as bool,
+      timestamp: fields[3] as DateTime,
+      title: fields[4] as String,
+      userId: fields[5] as String,
+      readAt: fields[6] as DateTime?,
+      enquiryId: fields[7] as String,
     );
   }
 
   @override
-  void write(BinaryWriter writer, UpdateModel obj) {
+  void write(BinaryWriter writer, UserNotificationModel obj) {
     writer
       ..writeByte(8)
       ..writeByte(0)
-      ..write(obj.updateId)
+      ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.enquiryId)
+      ..write(obj.message)
       ..writeByte(2)
-      ..write(obj.organizationId)
+      ..write(obj.isRead)
       ..writeByte(3)
-      ..write(obj.text)
+      ..write(obj.timestamp)
       ..writeByte(4)
-      ..write(obj.updatedBy)
+      ..write(obj.title)
       ..writeByte(5)
-      ..write(obj.updatedByName)
+      ..write(obj.userId)
       ..writeByte(6)
-      ..write(obj.createdAt)
+      ..write(obj.readAt)
       ..writeByte(7)
-      ..write(obj.updatedAt);
+      ..write(obj.enquiryId);
   }
 
   @override
@@ -56,7 +56,7 @@ class UpdateModelAdapter extends TypeAdapter<UpdateModel> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is UpdateModelAdapter &&
+      other is UserNotificationModelAdapter &&
           runtimeType == other.runtimeType &&
           typeId == other.typeId;
 }

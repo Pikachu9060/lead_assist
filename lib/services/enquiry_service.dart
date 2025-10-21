@@ -103,6 +103,16 @@ class EnquiryService {
   }) async {
     return ServiceUtils.handleServiceOperation('add enquiry', () async {
       final enquiryId = await ServiceUtils.runTransaction((transaction) async {
+        // 1. FIRST - ALL READS
+        final customerRef = FirebaseFirestore.instance
+            .collection('organizations')
+            .doc(organizationId)
+            .collection('customers')
+            .doc(customerId);
+
+        final customerDoc = await transaction.get(customerRef);
+
+        // 2. THEN - ALL WRITES
         final enquiryRef = _getEnquiriesCollection(organizationId).doc();
         final enquiryData = ServiceUtils.prepareCreateData({
           'customerId': customerId,
@@ -114,13 +124,6 @@ class EnquiryService {
 
         transaction.set(enquiryRef, enquiryData);
 
-        final customerRef = FirebaseFirestore.instance
-            .collection('organizations')
-            .doc(organizationId)
-            .collection('customers')
-            .doc(customerId);
-
-        final customerDoc = await transaction.get(customerRef);
         if (customerDoc.exists) {
           final currentTotal = (customerDoc.data()!['totalEnquiries'] ?? 0) as int;
           final currentActive = (customerDoc.data()!['activeEnquiries'] ?? 0) as int;
